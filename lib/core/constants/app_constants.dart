@@ -28,22 +28,28 @@ class AppConstants {
 
   // Classificações de Pressão
   static const Map<String, Map<String, dynamic>> pressureCategories = {
+    'otima': {
+      'name': 'Ótima',
+      'systolicMax': 120,
+      'diastolicMax': 80,
+      'color': Colors.green,
+    },
     'normal': {
       'name': 'Normal',
       'systolicMax': 129,
       'diastolicMax': 84,
-      'color': Colors.green,
+      'color': Colors.blue,
     },
     'elevated': {
       'name': 'Elevada',
-      'systolicMax': 139,
+      'systolicMax': 130,
       'diastolicMax': 89,
       'color': Colors.orange,
     },
     'high': {
       'name': 'Alta',
-      'systolicMax': 999, // Sem limite superior
-      'diastolicMax': 999,
+      'systolicMax': 140, // Sem limite superior
+      'diastolicMax': 90,
       'color': Colors.red,
     },
   };
