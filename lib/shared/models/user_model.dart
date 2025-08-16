@@ -81,7 +81,7 @@ class UserModel {
   /// Converte de UserModel para Map (para salvar no database)
   Map<String, dynamic> toMap() {
     try {
-      final map = {
+      final Map<String, dynamic> map = {
         'name': name,
         'birth_date': birthDate,
         'created_at': createdAt.toIso8601String(),
