@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_helper.dart';
 import '../../shared/models/measurement_model.dart';
-import '../measurements/add_measurement_screen.dart';
 
-// ✅ Interface pública para controle externo
+/// Interface pública para controlar a HistoryScreen externamente
 abstract class HistoryScreenController {
   void loadMeasurements();
 }
@@ -40,6 +40,8 @@ class _HistoryScreenState extends State<HistoryScreen>
     '3months': 'Últimos 3 meses',
   };
 
+  bool _showHeartRate = false;
+
   @override
   void initState() {
     super.initState();
@@ -55,7 +57,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     super.dispose();
   }
 
-  // ✅ Implementação da interface pública
+  /// Interface pública
   @override
   void loadMeasurements() {
     _loadMeasurements();
@@ -73,58 +75,41 @@ class _HistoryScreenState extends State<HistoryScreen>
   Future<void> _loadMeasurements() async {
     try {
       AppConstants.logInfo('Carregando histórico de medições');
-
       setState(() {
         _isLoading = true;
         _currentPage = 0;
       });
-
       final measurements = await _dbHelper.getAllMeasurements();
-
-      if (mounted) {
-        setState(() {
-          _measurements = measurements;
-          _filteredMeasurements = _applyPeriodFilter(measurements);
-          _isLoading = false;
-          _hasMoreData = _filteredMeasurements.length > _itemsPerPage;
-        });
-      }
-
+      setState(() {
+        _measurements = measurements;
+        _filteredMeasurements = _applyPeriodFilter(measurements);
+        _isLoading = false;
+        _hasMoreData = _filteredMeasurements.length > _itemsPerPage;
+      });
       AppConstants.logInfo('Histórico carregado: ${measurements.length} medições');
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao carregar histórico', e, stackTrace);
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
   Future<void> _loadMoreMeasurements() async {
     if (_isLoadingMore || !_hasMoreData) return;
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
+    setState(() => _isLoadingMore = true);
     await Future.delayed(const Duration(milliseconds: 500));
-
-    if (mounted) {
-      setState(() {
-        _currentPage++;
-        _isLoadingMore = false;
-
-        final endIndex = (_currentPage + 1) * _itemsPerPage;
-        _hasMoreData = endIndex < _filteredMeasurements.length;
-      });
-    }
+    setState(() {
+      _currentPage++;
+      _isLoadingMore = false;
+      final endIndex = (_currentPage + 1) * _itemsPerPage;
+      _hasMoreData = endIndex < _filteredMeasurements.length;
+    });
   }
 
   List<MeasurementModel> _applyPeriodFilter(List<MeasurementModel> measurements) {
     final now = DateTime.now();
     DateTime startDate;
-
     switch (_selectedPeriod) {
       case 'week':
         startDate = now.subtract(const Duration(days: 7));
@@ -138,7 +123,6 @@ class _HistoryScreenState extends State<HistoryScreen>
       default:
         return measurements;
     }
-
     return measurements.where((m) => m.measuredAt.isAfter(startDate)).toList();
   }
 
@@ -151,77 +135,32 @@ class _HistoryScreenState extends State<HistoryScreen>
     });
   }
 
-  Future<void> _editMeasurement(MeasurementModel measurement) async {
+  void _editMeasurement(MeasurementModel measurement) {
     AppConstants.logNavigation('HistoryScreen', 'EditMeasurementScreen');
-
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => AddMeasurementScreen(
-          measurementToEdit: measurement,
-        ),
-      ),
-    );
-
-    if (result == true) {
-      _loadMeasurements();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text('Medição atualizada com sucesso!'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    }
+    // TODO: Navegar para tela de edição
   }
 
   Future<void> _deleteMeasurement(MeasurementModel measurement) async {
     final confirmed = await _showDeleteDialog();
-
     if (confirmed == true) {
       try {
         await _dbHelper.deleteMeasurement(measurement.id!);
-        AppConstants.logInfo('Medição deletada: ID ${measurement.id}');
         _loadMeasurements();
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text('Medição removida com sucesso'),
-                ],
-              ),
+              content: Text('Medição removida com sucesso'),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
             ),
           );
         }
       } catch (e, stackTrace) {
         AppConstants.logError('Erro ao deletar medição', e, stackTrace);
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.error, color: Colors.white, size: 20),
-                  SizedBox(width: 8),
-                  Text('Erro ao remover medição'),
-                ],
-              ),
+              content: Text('Erro ao remover medição'),
               backgroundColor: AppConstants.secondaryColor,
-              duration: Duration(seconds: 3),
             ),
           );
         }
@@ -308,18 +247,14 @@ class _HistoryScreenState extends State<HistoryScreen>
     );
   }
 
+  // ======== LIST VIEW ========
   Widget _buildListView() {
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(
-          color: AppConstants.primaryColor,
-        ),
+        child: CircularProgressIndicator(color: AppConstants.primaryColor),
       );
     }
-
-    if (_filteredMeasurements.isEmpty) {
-      return _buildEmptyState();
-    }
+    if (_filteredMeasurements.isEmpty) return _buildEmptyState();
 
     final displayItems = (_currentPage + 1) * _itemsPerPage;
     final itemsToShow = displayItems > _filteredMeasurements.length
@@ -338,10 +273,7 @@ class _HistoryScreenState extends State<HistoryScreen>
               padding: const EdgeInsets.all(16),
               itemCount: itemsToShow + (_hasMoreData ? 1 : 0),
               itemBuilder: (context, index) {
-                if (index == itemsToShow) {
-                  return _buildLoadingIndicator();
-                }
-
+                if (index == itemsToShow) return _buildLoadingIndicator();
                 final measurement = _filteredMeasurements[index];
                 return _buildMeasurementCard(measurement, index);
               },
@@ -354,7 +286,6 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   Widget _buildPeriodHeader() {
     if (_selectedPeriod == 'all') return const SizedBox.shrink();
-
     return Container(
       padding: const EdgeInsets.all(16),
       color: AppConstants.primaryColor.withOpacity(0.05),
@@ -479,11 +410,8 @@ class _HistoryScreenState extends State<HistoryScreen>
             ),
           ],
           onSelected: (value) {
-            if (value == 'edit') {
-              _editMeasurement(measurement);
-            } else if (value == 'delete') {
-              _deleteMeasurement(measurement);
-            }
+            if (value == 'edit') _editMeasurement(measurement);
+            else if (value == 'delete') _deleteMeasurement(measurement);
           },
         ),
       ),
@@ -493,11 +421,7 @@ class _HistoryScreenState extends State<HistoryScreen>
   Widget _buildLoadingIndicator() {
     return const Padding(
       padding: EdgeInsets.all(16),
-      child: Center(
-        child: CircularProgressIndicator(
-          color: AppConstants.primaryColor,
-        ),
-      ),
+      child: Center(child: CircularProgressIndicator(color: AppConstants.primaryColor)),
     );
   }
 
@@ -508,11 +432,7 @@ class _HistoryScreenState extends State<HistoryScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.history,
-              size: 80,
-              color: AppConstants.textSecondary.withOpacity(0.5),
-            ),
+            Icon(Icons.history, size: 80, color: AppConstants.textSecondary.withOpacity(0.5)),
             const SizedBox(height: 16),
             Text(
               _selectedPeriod == 'all'
@@ -534,145 +454,114 @@ class _HistoryScreenState extends State<HistoryScreen>
                 color: AppConstants.textSecondary,
               ),
             ),
-            if (_selectedPeriod == 'all') ...[
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final result = await Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const AddMeasurementScreen(),
-                    ),
-                  );
-
-                  if (result == true) {
-                    _loadMeasurements();
-                  }
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Adicionar Medição'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppConstants.primaryColor,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
           ],
         ),
       ),
     );
   }
 
+  // ======== CHART VIEW ========
   Widget _buildChartView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: AppConstants.primaryColor.withOpacity(0.1),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppConstants.primaryColor.withOpacity(0.3),
-                  width: 2,
+    final data = _filteredMeasurements;
+    if (data.isEmpty) {
+      return Center(
+        child: Text(
+          'Nenhuma medição para exibir',
+          style: TextStyle(color: AppConstants.textSecondary),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Switch(
+                value: _showHeartRate,
+                onChanged: (val) => setState(() => _showHeartRate = val),
+                activeColor: AppConstants.primaryColor,
+              ),
+              const SizedBox(width: 8),
+              const Text('Mostrar frequência cardíaca'),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: LineChart(
+              LineChartData(
+                lineTouchData: LineTouchData(
+                  enabled: true,
+                  handleBuiltInTouches: true,
+                  touchTooltipData: LineTouchTooltipData(
+                    tooltipRoundedRadius: 8,
+                    tooltipPadding: const EdgeInsets.all(8),
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        final index = spot.x.toInt();
+                        if (index >= _filteredMeasurements.length) return null;
+                        final m = _filteredMeasurements[index];
+                        return LineTooltipItem(
+                          "${m.formattedDate}\n${m.systolic}/${m.diastolic} mmHg\n❤️ ${m.heartRate} bpm",
+                          const TextStyle(
+                            color: Colors.black, // cor do texto
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      }).whereType<LineTooltipItem>().toList();
+                    },
+                  ),
                 ),
-              ),
-              child: const Icon(
-                Icons.show_chart,
-                size: 50,
-                color: AppConstants.primaryColor,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Gráficos em Desenvolvimento',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Em breve você poderá visualizar:',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppConstants.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildFeaturesList(),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppConstants.primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppConstants.primaryColor,
-                      value: 0.3,
-                    ),
+                gridData: FlGridData(show: true),
+                borderData: FlBorderData(show: true),
+                titlesData: FlTitlesData(
+                  leftTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: true, reservedSize: 40)),
+                  bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(showTitles: true, reservedSize: 30)),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: List.generate(
+                        data.length,
+                            (index) =>
+                            FlSpot(index.toDouble(), data[index].systolic.toDouble())),
+                    isCurved: true,
+                    color: Colors.red,
+                    barWidth: 2,
+                    dotData: FlDotData(show: false),
                   ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    '30% concluído',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppConstants.primaryColor,
-                    ),
+                  LineChartBarData(
+                    spots: List.generate(
+                        data.length,
+                            (index) =>
+                            FlSpot(index.toDouble(), data[index].diastolic.toDouble())),
+                    isCurved: true,
+                    color: Colors.blue,
+                    barWidth: 2,
+                    dotData: FlDotData(show: false),
                   ),
+                  if (_showHeartRate)
+                    LineChartBarData(
+                      spots: List.generate(
+                          data.length,
+                              (index) =>
+                              FlSpot(index.toDouble(), data[index].heartRate.toDouble())),
+                      isCurved: true,
+                      color: Colors.green,
+                      barWidth: 2,
+                      dotData: FlDotData(show: false),
+                      dashArray: [5, 5],
+                    ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildFeaturesList() {
-    final features = [
-      'Gráficos de linha temporal',
-      'Tendências de pressão',
-      'Comparação semanal/mensal',
-      'Correlação com frequência cardíaca',
-    ];
-
-    return Column(
-      children: features.map((feature) =>
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.check_circle_outline,
-                  size: 16,
-                  color: AppConstants.primaryColor.withOpacity(0.7),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  feature,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppConstants.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          )).toList(),
     );
   }
 }

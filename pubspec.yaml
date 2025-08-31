@@ -23,6 +23,10 @@ dependencies:
   # Local Storage
   shared_preferences: ^2.2.3
 
+  #gráficos
+  fl_chart: ^0.71.0
+  intl: ^0.20.2
+
 
 flutter:
   uses-material-design: true

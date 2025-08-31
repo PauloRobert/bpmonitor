@@ -185,10 +185,11 @@ class _MainNavigationState extends State<MainNavigation> {
     );
   }
 
+  //Botão gradiente
   Widget _buildFloatingActionButton() {
     return Container(
-      width: 60,
-      height: 60,
+      width: 40,
+      height: 40,
       decoration: BoxDecoration(
         gradient: AppConstants.logoGradient,
         shape: BoxShape.circle,
@@ -215,6 +216,7 @@ class _MainNavigationState extends State<MainNavigation> {
     );
   }
 }
+//Botão gradiente
 
 class NavigationItem {
   final IconData icon;
