@@ -18,6 +18,13 @@ class AppConstants {
   static const String measurementsTable = 'measurements';
   static const String usersTable = 'users';
 
+  // SharedPreferences Keys
+  static const String onboardingCompleteKey = 'onboardingComplete';
+
+  // Rotas (Routes)
+  static const String mainRoute = '/main';
+  static const String onboardingRoute = '/onboarding';
+
   // Validações de Medição
   static const int minSystolic = 70;
   static const int maxSystolic = 250;

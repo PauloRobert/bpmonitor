@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -66,12 +68,24 @@ class _SplashScreenState extends State<SplashScreen>
     }
   }
 
-  void _navigateToNextScreen() {
-    AppConstants.logNavigation('SplashScreen', 'NextScreen');
+  /// Decide a próxima rota com base no status de conclusão do onboarding.
+  Future<void> _navigateToNextScreen() async {
+    AppConstants.logInfo('Splash concluído. Decidindo próxima rota...');
 
-    // TODO: Implementar navegação baseada no estado do usuário
-    // Por enquanto, vamos apenas fazer log da próxima navegação
-    AppConstants.logInfo('Splash concluído - pronto para navegar');
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Verifica se a chave 'onboardingComplete' é true. Se não existir, retorna false.
+    final bool isOnboardingComplete = prefs.getBool(AppConstants.onboardingCompleteKey) ?? false;
+    
+    // Prática de segurança: verificar se o widget ainda está montado antes de navegar.
+    if (!mounted) return;
+
+    final String route = isOnboardingComplete
+        ? AppConstants.mainRoute
+        : AppConstants.onboardingRoute;
+
+    AppConstants.logNavigation('SplashScreen', route);
+    Navigator.of(context).pushReplacementNamed(route);
   }
 
   @override
