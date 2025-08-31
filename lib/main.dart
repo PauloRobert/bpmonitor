@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/constants/app_constants.dart';
 import 'utils/app_router.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
   runApp(
@@ -69,6 +69,17 @@ class BPMonitorApp extends StatelessWidget {
           ),
         ),
       ),
+      // --- ALTERAÇÕES AQUI ---
+      supportedLocales: const [
+        Locale('en', 'US'), // Inglês
+        Locale('pt', 'BR'), // Português
+      ],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      // --- FIM DAS ALTERAÇÕES ---
       onGenerateRoute: AppRouter.generateRoute,
       home: const AppInitializer(),
     );
