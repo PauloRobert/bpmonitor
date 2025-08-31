@@ -474,7 +474,7 @@ class _HistoryScreenState extends State<HistoryScreen>
 
     final data = _filteredMeasurements;
 
-    // Calcula minY e maxY considerando pressão e opcionalmente frequência cardíaca
+    // Calcula minY e maxY
     final systolicMin = data.map((m) => m.systolic.toDouble()).reduce(min);
     final systolicMax = data.map((m) => m.systolic.toDouble()).reduce(max);
     final diastolicMin = data.map((m) => m.diastolic.toDouble()).reduce(min);
@@ -523,15 +523,27 @@ class _HistoryScreenState extends State<HistoryScreen>
                         final index = spot.x.toInt();
                         if (index < 0 || index >= data.length) return null;
                         final m = data[index];
+
+                        // Texto limitado manualmente
                         String tooltip = "${m.formattedDate}\n${m.systolic}/${m.diastolic} mmHg";
                         if (_showHeartRate) {
                           tooltip += "\n❤️ ${m.heartRate} bpm";
                         }
+
+                        // Se houver notas longas, limita manualmente
+                        if (m.notes != null && m.notes!.isNotEmpty) {
+                          final note = m.notes!.length > 50
+                              ? "${m.notes!.substring(0, 50)}..."
+                              : m.notes!;
+                          tooltip += "\n📝 $note";
+                        }
+
                         return LineTooltipItem(
                           tooltip,
                           const TextStyle(
-                            color: Colors.black,
+                            color: Colors.white,
                             fontWeight: FontWeight.bold,
+                            fontSize: 12,
                           ),
                         );
                       }).toList();
@@ -563,7 +575,6 @@ class _HistoryScreenState extends State<HistoryScreen>
                 gridData: FlGridData(show: true, drawVerticalLine: true),
                 borderData: FlBorderData(show: true, border: Border.all(color: Colors.black26)),
                 lineBarsData: [
-                  // Sistólica
                   LineChartBarData(
                     spots: List.generate(
                       data.length,
@@ -575,7 +586,6 @@ class _HistoryScreenState extends State<HistoryScreen>
                     belowBarData: BarAreaData(show: true, color: Colors.red.withOpacity(0.2)),
                     dotData: FlDotData(show: true),
                   ),
-                  // Diastólica
                   LineChartBarData(
                     spots: List.generate(
                       data.length,
@@ -587,7 +597,6 @@ class _HistoryScreenState extends State<HistoryScreen>
                     belowBarData: BarAreaData(show: true, color: Colors.blue.withOpacity(0.2)),
                     dotData: FlDotData(show: true),
                   ),
-                  // Frequência cardíaca opcional
                   if (_showHeartRate)
                     LineChartBarData(
                       spots: List.generate(
