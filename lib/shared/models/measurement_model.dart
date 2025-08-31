@@ -31,53 +31,149 @@ class MeasurementModel {
         createdAt = DateTime.now(),
         notes = null;
 
-  /// Retorna a categoria da pressão (normal, elevada, alta)
+  /// ✅ FIX: Classificação correta baseada em diretrizes médicas
+  /// Segue as diretrizes da American Heart Association e SBC
   String get category {
     try {
-      for (final entry in AppConstants.pressureCategories.entries) {
-        final data = entry.value;
-        if (systolic <= data['systolicMax'] && diastolic <= data['diastolicMax']) {
-          AppConstants.logInfo('Pressão $systolic/$diastolic classificada como: ${data['name']}');
-          return entry.key;
-        }
+      // Crise hipertensiva - prioridade máxima
+      if (systolic >= 180 || diastolic >= 120) {
+        AppConstants.logWarning('Pressão $systolic/$diastolic - CRISE HIPERTENSIVA detectada');
+        return 'crisis';
       }
 
-      AppConstants.logWarning('Pressão $systolic/$diastolic não se encaixou em nenhuma categoria, assumindo "alta"');
-      return 'high';
+      // Hipertensão estágio 2
+      if (systolic >= 140 || diastolic >= 90) {
+        AppConstants.logInfo('Pressão $systolic/$diastolic classificada como: Hipertensão Estágio 2');
+        return 'high_stage2';
+      }
+
+      // Hipertensão estágio 1
+      if (systolic >= 130 || diastolic >= 80) {
+        AppConstants.logInfo('Pressão $systolic/$diastolic classificada como: Hipertensão Estágio 1');
+        return 'high_stage1';
+      }
+
+      // Pressão elevada (apenas sistólica)
+      if (systolic >= 120 && diastolic < 80) {
+        AppConstants.logInfo('Pressão $systolic/$diastolic classificada como: Elevada');
+        return 'elevated';
+      }
+
+      // Pressão ótima
+      if (systolic < 120 && diastolic < 80) {
+        AppConstants.logInfo('Pressão $systolic/$diastolic classificada como: Ótima');
+        return 'optimal';
+      }
+
+      // Normal (não deveria chegar aqui, mas é um fallback)
+      AppConstants.logInfo('Pressão $systolic/$diastolic classificada como: Normal');
+      return 'normal';
+
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao determinar categoria da pressão', e, stackTrace);
-      return 'high'; // Default para alta em caso de erro
+      return 'high_stage2'; // Default para alta em caso de erro
     }
   }
 
-  /// Retorna o nome da categoria da pressão
+  /// ✅ FIX: Nomes das categorias atualizados
   String get categoryName {
-    return AppConstants.pressureCategories[category]?['name'] ?? 'Alta';
+    const categories = {
+      'optimal': 'Ótima',
+      'normal': 'Normal',
+      'elevated': 'Elevada',
+      'high_stage1': 'Alta Estágio 1',
+      'high_stage2': 'Alta Estágio 2',
+      'crisis': 'Crise Hipertensiva',
+    };
+
+    return categories[category] ?? 'Alta Estágio 2';
   }
 
-  /// Retorna a cor da categoria da pressão
+  /// ✅ FIX: Cores das categorias atualizadas
   Color get categoryColor {
-    return AppConstants.pressureCategories[category]?['color'] ?? Colors.red;
+    const colors = {
+      'optimal': Colors.green,
+      'normal': Colors.blue,
+      'elevated': Colors.orange,
+      'high_stage1': Colors.deepOrange,
+      'high_stage2': Colors.red,
+      'crisis': Colors.purple,
+    };
+
+    return colors[category] ?? Colors.red;
   }
 
-  /// Valida se os valores da medição estão dentro dos limites esperados
+  /// ✅ FIX: Melhorar sistema de alertas médicos
+  List<String> get medicalAlerts {
+    final alerts = <String>[];
+
+    // Alertas por categoria
+    switch (category) {
+      case 'crisis':
+        alerts.add('⚠️ ATENÇÃO: Procure atendimento médico IMEDIATAMENTE');
+        alerts.add('Valores indicam possível emergência hipertensiva');
+        break;
+      case 'high_stage2':
+        alerts.add('⚠️ Pressão muito alta - consulte seu médico');
+        alerts.add('Considere verificar novamente em 5 minutos');
+        break;
+      case 'high_stage1':
+        alerts.add('⚠️ Pressão alta - monitoramento necessário');
+        break;
+      case 'elevated':
+        alerts.add('💡 Pressão elevada - mudanças no estilo de vida podem ajudar');
+        break;
+    }
+
+    // Alertas específicos para frequência cardíaca
+    if (heartRate > 100) {
+      alerts.add('❤️ Frequência cardíaca acelerada (taquicardia)');
+    } else if (heartRate < 60) {
+      alerts.add('❤️ Frequência cardíaca baixa (bradicardia)');
+    }
+
+    // Alerta para diferença de pulso
+    final pulsePressure = systolic - diastolic;
+    if (pulsePressure > 60) {
+      alerts.add('📊 Pressão de pulso elevada (diferença entre sistólica e diastólica)');
+    } else if (pulsePressure < 30) {
+      alerts.add('📊 Pressão de pulso baixa');
+    }
+
+    return alerts;
+  }
+
+  /// ✅ FIX: Validações médicas mais rigorosas
   List<String> get validationErrors {
     final errors = <String>[];
 
+    // Validações básicas de range
     if (systolic < AppConstants.minSystolic || systolic > AppConstants.maxSystolic) {
-      errors.add('Sistólica fora da faixa normal (${AppConstants.minSystolic}-${AppConstants.maxSystolic})');
+      errors.add('Sistólica fora da faixa válida (${AppConstants.minSystolic}-${AppConstants.maxSystolic})');
     }
 
     if (diastolic < AppConstants.minDiastolic || diastolic > AppConstants.maxDiastolic) {
-      errors.add('Diastólica fora da faixa normal (${AppConstants.minDiastolic}-${AppConstants.maxDiastolic})');
+      errors.add('Diastólica fora da faixa válida (${AppConstants.minDiastolic}-${AppConstants.maxDiastolic})');
     }
 
     if (heartRate < AppConstants.minHeartRate || heartRate > AppConstants.maxHeartRate) {
-      errors.add('Frequência cardíaca fora da faixa normal (${AppConstants.minHeartRate}-${AppConstants.maxHeartRate})');
+      errors.add('Frequência cardíaca fora da faixa válida (${AppConstants.minHeartRate}-${AppConstants.maxHeartRate})');
     }
 
-    if (measuredAt.isAfter(DateTime.now().add(Duration(hours: 1)))) {
+    // ✅ FIX: Validação médica crítica
+    if (systolic <= diastolic) {
+      errors.add('ERRO CRÍTICO: Pressão sistólica deve ser maior que diastólica');
+    }
+
+    // Validação de data
+    if (measuredAt.isAfter(DateTime.now().add(const Duration(hours: 1)))) {
       errors.add('Data/hora da medição não pode ser no futuro');
+    }
+
+    // Validação de idade da medição
+    final daysSinceMeasurement = DateTime.now().difference(measuredAt).inDays;
+    if (daysSinceMeasurement > 365) {
+      errors.add('Medição muito antiga (mais de 1 ano)');
     }
 
     if (errors.isNotEmpty) {
@@ -92,24 +188,44 @@ class MeasurementModel {
   /// Verifica se a medição é válida
   bool get isValid => validationErrors.isEmpty;
 
-  /// Retorna a data formatada (DD/MM/YYYY)
+  /// ✅ FIX: Método para verificar se precisa de atenção médica
+  bool get needsUrgentAttention {
+    return category == 'crisis' ||
+        (systolic >= 180 || diastolic >= 120) ||
+        heartRate > 150 ||
+        heartRate < 40;
+  }
+
+  /// ✅ FIX: Formatação de data mais robusta
   String get formattedDate {
     try {
       return '${measuredAt.day.toString().padLeft(2, '0')}/${measuredAt.month.toString().padLeft(2, '0')}/${measuredAt.year}';
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao formatar data', e, stackTrace);
-      return '';
+      return 'Data inválida';
     }
   }
 
-  /// Retorna a hora formatada (HH:MM)
+  /// ✅ FIX: Formatação de hora mais robusta
   String get formattedTime {
     try {
       return '${measuredAt.hour.toString().padLeft(2, '0')}:${measuredAt.minute.toString().padLeft(2, '0')}';
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao formatar hora', e, stackTrace);
-      return '';
+      return 'Hora inválida';
     }
+  }
+
+  /// ✅ FIX: Formatação de data/hora mais completa
+  String get formattedDateTime {
+    return '$formattedDate às $formattedTime';
+  }
+
+  /// ✅ FIX: Método para obter descrição completa
+  String get summary {
+    final alerts = medicalAlerts;
+    final alertText = alerts.isNotEmpty ? ' - ${alerts.first}' : '';
+    return '$systolic/$diastolic mmHg, $heartRate bpm ($categoryName)$alertText';
   }
 
   /// Converte de Map para MeasurementModel (vindo do database)

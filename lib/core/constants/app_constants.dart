@@ -33,31 +33,56 @@ class AppConstants {
   static const int minHeartRate = 30;
   static const int maxHeartRate = 220;
 
-  // Classificações de Pressão
+  // ✅ FIX: Classificações de Pressão baseadas em diretrizes médicas
+  // Seguindo American Heart Association e Sociedade Brasileira de Cardiologia
   static const Map<String, Map<String, dynamic>> pressureCategories = {
-    'otima': {
+    'optimal': {
       'name': 'Ótima',
+      'description': 'Pressão arterial ideal',
       'systolicMax': 120,
       'diastolicMax': 80,
-      'color': Colors.green,
+      'color': Color(0xFF10B981), // Verde
+      'priority': 1,
     },
     'normal': {
       'name': 'Normal',
+      'description': 'Pressão arterial normal',
       'systolicMax': 129,
       'diastolicMax': 84,
-      'color': Colors.blue,
+      'color': Color(0xFF3B82F6), // Azul
+      'priority': 2,
     },
     'elevated': {
       'name': 'Elevada',
+      'description': 'Pressão arterial elevada',
       'systolicMax': 130,
       'diastolicMax': 89,
-      'color': Colors.orange,
+      'color': Color(0xFFF59E0B), // Amarelo/Laranja
+      'priority': 3,
     },
-    'high': {
-      'name': 'Alta',
-      'systolicMax': 140, // Sem limite superior
-      'diastolicMax': 90,
-      'color': Colors.red,
+    'high_stage1': {
+      'name': 'Alta Estágio 1',
+      'description': 'Hipertensão estágio 1',
+      'systolicMax': 139,
+      'diastolicMax': 89,
+      'color': Color(0xFFEF4444), // Vermelho claro
+      'priority': 4,
+    },
+    'high_stage2': {
+      'name': 'Alta Estágio 2',
+      'description': 'Hipertensão estágio 2',
+      'systolicMax': 179,
+      'diastolicMax': 119,
+      'color': Color(0xFFDC2626), // Vermelho escuro
+      'priority': 5,
+    },
+    'crisis': {
+      'name': 'Crise Hipertensiva',
+      'description': 'Emergência médica - procure atendimento imediato',
+      'systolicMax': 300, // Sem limite prático
+      'diastolicMax': 200,
+      'color': Color(0xFF7C3AED), // Roxo
+      'priority': 6,
     },
   };
 
@@ -68,6 +93,12 @@ class AppConstants {
   static const Color cardColor = Colors.white;
   static const Color textPrimary = Color(0xFF1F2937);
   static const Color textSecondary = Color(0xFF6B7280);
+
+  // ✅ FIX: Cores de alerta médico
+  static const Color successColor = Color(0xFF10B981);
+  static const Color warningColor = Color(0xFFF59E0B);
+  static const Color dangerColor = Color(0xFFDC2626);
+  static const Color criticalColor = Color(0xFF7C3AED);
 
   // Gradientes
   static const LinearGradient splashGradient = LinearGradient(
@@ -119,7 +150,7 @@ class AppConstants {
   static const double borderRadius = 12.0;
   static const double cardPadding = 16.0;
 
-  // Mensagens
+  // ✅ FIX: Mensagens de feedback melhoradas
   static const String dataSecurityMessage =
       'Seus dados sempre seguros no seu dispositivo';
   static const String noDataMessage = 'Nenhuma medição registrada';
@@ -129,8 +160,22 @@ class AppConstants {
   static const String validationAgeError =
       'Por favor, verifique sua data de nascimento';
   static const String measurementSavedSuccess = 'Medição salva com sucesso!';
+  static const String measurementUpdatedSuccess = 'Medição atualizada com sucesso!';
+  static const String measurementDeletedSuccess = 'Medição removida com sucesso!';
   static const String fillAllFieldsError =
       'Por favor, preencha todos os campos obrigatórios';
+
+  // ✅ FIX: Mensagens de alerta médico
+  static const String urgentAttentionMessage =
+      'ATENÇÃO: Valores indicam necessidade de avaliação médica urgente';
+  static const String highPressureMessage =
+      'Pressão alta detectada. Considere consultar seu médico';
+  static const String measurementTipsMessage =
+      'Dica: Descanse 5 minutos antes de medir e mantenha os pés no chão';
+
+  // ✅ FIX: Configurações de paginação
+  static const int defaultPageSize = 20;
+  static const int maxItemsInMemory = 100;
 
   // Logs personalizados com níveis
   static void logInfo(String message) {
@@ -157,5 +202,19 @@ class AppConstants {
 
   static void logNavigation(String from, String to) {
     debugPrint('$logTag [NAVIGATION] From $from to $to');
+  }
+
+  // ✅ FIX: Novos métodos de log para diferentes contextos
+  static void logMedical(String message) {
+    debugPrint('$logTag [MEDICAL] $message');
+  }
+
+  static void logPerformance(String operation, int duration) {
+    debugPrint('$logTag [PERFORMANCE] $operation took ${duration}ms');
+  }
+
+  static void logUserAction(String action, [Map<String, dynamic>? data]) {
+    final dataStr = data != null ? ' - Data: $data' : '';
+    debugPrint('$logTag [USER_ACTION] $action$dataStr');
   }
 }

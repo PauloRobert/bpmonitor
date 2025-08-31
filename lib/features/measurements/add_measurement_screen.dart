@@ -135,6 +135,7 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     return null;
   }
 
+  // ✅ FIX: Sistema de alertas médicos melhorado
   List<String> _getWarnings() {
     final warnings = <String>[];
 
@@ -143,29 +144,74 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     final heartRate = int.tryParse(_heartRateController.text);
 
     if (systolic != null && diastolic != null) {
+      // Validação crítica
       if (systolic <= diastolic) {
-        warnings.add('A pressão sistólica geralmente é maior que a diastólica');
+        warnings.add('ERRO: A pressão sistólica deve ser maior que a diastólica');
       }
 
-      if (systolic >= 180 || diastolic >= 120) {
-        warnings.add('Valores muito altos - procure ajuda médica se necessário');
-      }
-    }
+      // Criar medição temporária para usar a nova classificação
+      final tempMeasurement = MeasurementModel(
+        systolic: systolic,
+        diastolic: diastolic,
+        heartRate: heartRate ?? 72,
+        measuredAt: DateTime.now(),
+        createdAt: DateTime.now(),
+      );
 
-    if (heartRate != null) {
-      if (heartRate > 100) {
-        warnings.add('Frequência cardíaca acelerada');
-      } else if (heartRate < 60) {
-        warnings.add('Frequência cardíaca baixa');
-      }
+      // Adicionar alertas médicos específicos
+      warnings.addAll(tempMeasurement.medicalAlerts);
     }
 
     return warnings;
   }
 
+  // ✅ FIX: Obter nível de criticidade dos alertas
+  AlertLevel _getAlertLevel() {
+    final systolic = int.tryParse(_systolicController.text);
+    final diastolic = int.tryParse(_diastolicController.text);
+
+    if (systolic != null && diastolic != null) {
+      final tempMeasurement = MeasurementModel(
+        systolic: systolic,
+        diastolic: diastolic,
+        heartRate: int.tryParse(_heartRateController.text) ?? 72,
+        measuredAt: DateTime.now(),
+        createdAt: DateTime.now(),
+      );
+
+      if (tempMeasurement.needsUrgentAttention) {
+        return AlertLevel.critical;
+      }
+
+      switch (tempMeasurement.category) {
+        case 'crisis':
+          return AlertLevel.critical;
+        case 'high_stage2':
+          return AlertLevel.high;
+        case 'high_stage1':
+          return AlertLevel.medium;
+        case 'elevated':
+          return AlertLevel.low;
+        default:
+          return AlertLevel.none;
+      }
+    }
+
+    return AlertLevel.none;
+  }
+
   Future<void> _saveMeasurement() async {
     if (!_formKey.currentState!.validate()) {
       return;
+    }
+
+    // ✅ FIX: Verificar alertas críticos antes de salvar
+    final alertLevel = _getAlertLevel();
+    if (alertLevel == AlertLevel.critical) {
+      final shouldContinue = await _showCriticalAlert();
+      if (shouldContinue != true) {
+        return;
+      }
     }
 
     setState(() {
@@ -191,6 +237,17 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       );
 
+      // ✅ FIX: Log da ação do usuário
+      AppConstants.logUserAction(
+        widget.measurementToEdit != null ? 'update_measurement' : 'add_measurement',
+        {
+          'systolic': measurement.systolic,
+          'diastolic': measurement.diastolic,
+          'heartRate': measurement.heartRate,
+          'category': measurement.category,
+        },
+      );
+
       if (widget.measurementToEdit != null) {
         await _dbHelper.updateMeasurement(measurement);
         AppConstants.logInfo('Medição atualizada: ${measurement.systolic}/${measurement.diastolic}');
@@ -200,16 +257,20 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
       }
 
       if (mounted) {
+        final isEditing = widget.measurementToEdit != null;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text(AppConstants.measurementSavedSuccess),
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text(isEditing
+                    ? AppConstants.measurementUpdatedSuccess
+                    : AppConstants.measurementSavedSuccess),
               ],
             ),
-            backgroundColor: Colors.green,
+            backgroundColor: AppConstants.successColor,
+            duration: const Duration(seconds: 2),
           ),
         );
 
@@ -221,8 +282,15 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Erro ao salvar medição. Tente novamente.'),
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Erro ao salvar medição. Tente novamente.'),
+              ],
+            ),
             backgroundColor: AppConstants.secondaryColor,
+            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -235,10 +303,61 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     }
   }
 
+  // ✅ FIX: Diálogo de alerta crítico
+  Future<bool?> _showCriticalAlert() async {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: AppConstants.criticalColor),
+            const SizedBox(width: 8),
+            const Text('Atenção Médica Urgente'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Os valores informados indicam uma possível emergência hipertensiva.',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 12),
+            Text(
+              '⚠️ Recomendamos procurar atendimento médico imediatamente.',
+              style: TextStyle(color: Colors.red),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Deseja continuar salvando esta medição?',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppConstants.criticalColor,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Salvar Mesmo Assim'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.measurementToEdit != null;
     final warnings = _getWarnings();
+    final alertLevel = _getAlertLevel();
 
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
@@ -269,7 +388,7 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
               _buildNotesField(),
               if (warnings.isNotEmpty) ...[
                 const SizedBox(height: 24),
-                _buildWarningsCard(warnings),
+                _buildWarningsCard(warnings, alertLevel),
               ],
               const SizedBox(height: 32),
               _buildSaveButton(),
@@ -288,26 +407,68 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
+        child: Column(
           children: [
-            const Icon(
-              Icons.info_outline,
-              color: AppConstants.primaryColor,
-              size: 24,
+            Row(
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  color: AppConstants.primaryColor,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Dicas para uma medição precisa:',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.textPrimary,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            const Expanded(
+            const SizedBox(height: 12),
+            _buildTipsList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTipsList() {
+    final tips = [
+      'Descanse 5 minutos antes da medição',
+      'Mantenha os pés no chão e costas apoiadas',
+      'Evite falar durante a medição',
+      'Não consuma cafeína 30min antes',
+    ];
+
+    return Column(
+      children: tips.map((tip) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.check_circle,
+              size: 16,
+              color: AppConstants.successColor,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
               child: Text(
-                'Certifique-se de estar relaxado e em posição adequada para a medição',
-                style: TextStyle(
-                  fontSize: 14,
+                tip,
+                style: const TextStyle(
+                  fontSize: 12,
                   color: AppConstants.textSecondary,
                 ),
               ),
             ),
           ],
         ),
-      ),
+      )).toList(),
     );
   }
 
@@ -341,6 +502,7 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
                       suffixText: 'mmHg',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.arrow_upward),
+                      helperText: 'Pressão máxima',
                     ),
                     keyboardType: TextInputType.number,
                     inputFormatters: [
@@ -360,6 +522,7 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
                       suffixText: 'mmHg',
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.arrow_downward),
+                      helperText: 'Pressão mínima',
                     ),
                     keyboardType: TextInputType.number,
                     inputFormatters: [
@@ -380,6 +543,7 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
                 suffixText: 'bpm',
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.favorite),
+                helperText: 'Batimentos por minuto',
               ),
               keyboardType: TextInputType.number,
               inputFormatters: [
@@ -389,8 +553,61 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
               validator: _validateHeartRate,
               onChanged: (_) => setState(() {}),
             ),
+            // ✅ FIX: Preview da classificação em tempo real
+            if (_systolicController.text.isNotEmpty && _diastolicController.text.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildClassificationPreview(),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  // ✅ FIX: Preview da classificação em tempo real
+  Widget _buildClassificationPreview() {
+    final systolic = int.tryParse(_systolicController.text);
+    final diastolic = int.tryParse(_diastolicController.text);
+    final heartRate = int.tryParse(_heartRateController.text);
+
+    if (systolic == null || diastolic == null) {
+      return const SizedBox.shrink();
+    }
+
+    final tempMeasurement = MeasurementModel(
+      systolic: systolic,
+      diastolic: diastolic,
+      heartRate: heartRate ?? 72,
+      measuredAt: DateTime.now(),
+      createdAt: DateTime.now(),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tempMeasurement.categoryColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: tempMeasurement.categoryColor.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.analytics,
+            color: tempMeasurement.categoryColor,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Classificação: ${tempMeasurement.categoryName}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: tempMeasurement.categoryColor,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -495,13 +712,51 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     );
   }
 
-  Widget _buildWarningsCard(List<String> warnings) {
+  // ✅ FIX: Card de alertas com níveis de criticidade
+  Widget _buildWarningsCard(List<String> warnings, AlertLevel level) {
+    Color cardColor;
+    Color borderColor;
+    Color textColor;
+    IconData icon;
+
+    switch (level) {
+      case AlertLevel.critical:
+        cardColor = AppConstants.criticalColor.withOpacity(0.1);
+        borderColor = AppConstants.criticalColor;
+        textColor = AppConstants.criticalColor;
+        icon = Icons.emergency;
+        break;
+      case AlertLevel.high:
+        cardColor = AppConstants.dangerColor.withOpacity(0.1);
+        borderColor = AppConstants.dangerColor;
+        textColor = AppConstants.dangerColor;
+        icon = Icons.warning;
+        break;
+      case AlertLevel.medium:
+        cardColor = Colors.orange.shade50;
+        borderColor = Colors.orange.shade200;
+        textColor = Colors.orange.shade700;
+        icon = Icons.warning_amber;
+        break;
+      case AlertLevel.low:
+        cardColor = AppConstants.warningColor.withOpacity(0.1);
+        borderColor = AppConstants.warningColor;
+        textColor = AppConstants.warningColor;
+        icon = Icons.info;
+        break;
+      default:
+        cardColor = Colors.blue.shade50;
+        borderColor = Colors.blue.shade200;
+        textColor = Colors.blue.shade700;
+        icon = Icons.info_outline;
+    }
+
     return Card(
-      elevation: 1,
-      color: Colors.orange.shade50,
+      elevation: level == AlertLevel.critical ? 3 : 1,
+      color: cardColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-        side: BorderSide(color: Colors.orange.shade200),
+        side: BorderSide(color: borderColor, width: level == AlertLevel.critical ? 2 : 1),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -510,14 +765,14 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.warning_amber, color: Colors.orange.shade700),
+                Icon(icon, color: textColor),
                 const SizedBox(width: 8),
                 Text(
-                  'Atenção',
+                  level == AlertLevel.critical ? 'ATENÇÃO URGENTE' : 'Atenção',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
-                    color: Colors.orange.shade700,
+                    color: textColor,
                   ),
                 ),
               ],
@@ -529,10 +784,36 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
                 '• $warning',
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.orange.shade700,
+                  color: textColor,
+                  fontWeight: level == AlertLevel.critical ? FontWeight.w500 : FontWeight.normal,
                 ),
               ),
             )),
+            // ✅ FIX: Botão de ação para casos críticos
+            if (level == AlertLevel.critical) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    // Simular chamada de emergência (placeholder)
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Em caso de emergência, ligue 192 (SAMU) ou vá ao hospital mais próximo'),
+                        backgroundColor: AppConstants.criticalColor,
+                        duration: Duration(seconds: 5),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.phone),
+                  label: const Text('Orientações de Emergência'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: textColor,
+                    side: BorderSide(color: textColor),
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -541,13 +822,16 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
 
   Widget _buildSaveButton() {
     final isEditing = widget.measurementToEdit != null;
+    final alertLevel = _getAlertLevel();
 
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
         onPressed: _isLoading ? null : _saveMeasurement,
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppConstants.primaryColor,
+          backgroundColor: alertLevel == AlertLevel.critical
+              ? AppConstants.criticalColor
+              : AppConstants.primaryColor,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
@@ -563,14 +847,32 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
             color: Colors.white,
           ),
         )
-            : Text(
-          isEditing ? 'Atualizar Medição' : 'Salvar Medição',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+            : Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (alertLevel == AlertLevel.critical)
+              const Icon(Icons.warning, size: 18),
+            if (alertLevel == AlertLevel.critical)
+              const SizedBox(width: 8),
+            Text(
+              isEditing ? 'Atualizar Medição' : 'Salvar Medição',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+// ✅ FIX: Enum para níveis de alerta
+enum AlertLevel {
+  none,
+  low,
+  medium,
+  high,
+  critical,
 }

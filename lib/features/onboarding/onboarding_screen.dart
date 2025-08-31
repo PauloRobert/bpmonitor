@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_helper.dart';
 import '../../shared/models/user_model.dart';
-// FIX: Importar o AppRouter para usar as rotas nomeadas
 import '../../utils/app_router.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -16,8 +16,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _birthDateController = TextEditingController();
-  // A GlobalKey não é mais necessária, vamos usar a abordagem moderna
-  // final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
   int _currentPage = 0;
   bool _isLoading = false;
@@ -66,6 +64,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
+  // ✅ FIX: Implementação completa do onboarding com SharedPreferences
   Future<void> _completeOnboarding() async {
     // Esconde o teclado se estiver aberto
     FocusScope.of(context).unfocus();
@@ -94,18 +93,27 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       if (!user.isValid) {
         _showError(AppConstants.validationAgeError);
-        // FIX: Também é preciso parar o loading aqui
         setState(() {
           _isLoading = false;
         });
         return;
       }
 
+      // ✅ FIX: Salvar usuário no database
       await _dbHelper.insertUser(user);
+      AppConstants.logInfo('Usuário salvo: ${user.name}, ${user.age} anos');
 
-      AppConstants.logInfo('Onboarding concluído para usuário: ${user.name}');
+      // ✅ FIX: CRÍTICO - Marcar onboarding como concluído
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(AppConstants.onboardingCompleteKey, true);
+      AppConstants.logInfo('Onboarding marcado como concluído');
 
-      // FIX: Navega ANTES de mudar o estado, se o widget ainda estiver montado.
+      AppConstants.logUserAction('complete_onboarding', {
+        'userName': user.name,
+        'userAge': user.age,
+      });
+
+      // Navegar para home se o widget ainda estiver montado
       if (mounted) {
         _navigateToHome();
       }
@@ -113,26 +121,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao completar onboarding', e, stackTrace);
       _showError('Erro ao salvar dados. Tente novamente.');
-      // FIX: Garante que o loading para mesmo em caso de erro.
+
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
       }
     }
-    // NOTA: Não colocamos o setState(isLoading=false) aqui no sucesso,
-    // porque a tela será destruída pela navegação. Se a navegação falhasse,
-    // o ideal seria ter um `finally` ou parar o loading após a navegação.
-    // Como estamos substituindo a tela, não é um problema crítico.
   }
 
   void _showError(String message) {
-    // FIX: Usar a abordagem moderna para SnackBar, que é mais segura.
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
+          ),
           backgroundColor: AppConstants.secondaryColor,
+          duration: const Duration(seconds: 3),
         ),
       );
     }
@@ -140,17 +150,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   void _navigateToHome() {
     AppConstants.logNavigation('OnboardingScreen', 'MainNavigation');
-    // FIX: Implementar a navegação usando a rota definida no AppRouter.
-    // Usamos pushReplacementNamed para que o usuário não possa "voltar" para o onboarding.
     Navigator.of(context).pushReplacementNamed(AppRouter.main);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // key não é mais necessária
       backgroundColor: AppConstants.backgroundColor,
-      // Usar um GestureDetector para esconder o teclado ao tocar fora dos campos
       body: GestureDetector(
         onTap: () => FocusScope.of(context).unfocus(),
         child: SafeArea(
@@ -182,7 +188,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ... O resto do seu arquivo (os métodos _build) pode continuar exatamente igual ...
   Widget _buildOnboardingPage(Map<String, dynamic> data) {
     return Padding(
       padding: const EdgeInsets.all(32.0),
@@ -260,37 +265,100 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 40),
+            // ✅ FIX: Melhorar validação em tempo real
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Nome completo *',
                 hintText: 'Digite seu nome',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.person),
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.person),
+                errorText: _nameController.text.isNotEmpty && _nameController.text.trim().length < 2
+                    ? 'Nome muito curto'
+                    : null,
               ),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 20),
             TextField(
               controller: _birthDateController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Data de nascimento *',
                 hintText: 'Selecione sua data de nascimento',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.cake),
-                suffixIcon: Icon(Icons.calendar_today),
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.cake),
+                suffixIcon: const Icon(Icons.calendar_today),
+                errorText: _birthDateController.text.isNotEmpty && _getAgeFromBirthDate() < 10
+                    ? 'Idade mínima: 10 anos'
+                    : null,
               ),
               readOnly: true,
               onTap: _selectBirthDate,
             ),
+            // ✅ FIX: Mostrar idade calculada
+            if (_birthDateController.text.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppConstants.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: AppConstants.primaryColor,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Idade: ${_getAgeFromBirthDate()} anos',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: AppConstants.primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
   }
 
+  // ✅ FIX: Método para calcular idade em tempo real
+  int _getAgeFromBirthDate() {
+    if (_birthDateController.text.isEmpty) return 0;
+
+    try {
+      final birth = DateTime.parse(_birthDateController.text);
+      final today = DateTime.now();
+      int age = today.year - birth.year;
+
+      if (today.month < birth.month ||
+          (today.month == birth.month && today.day < birth.day)) {
+        age--;
+      }
+
+      return age;
+    } catch (e) {
+      return 0;
+    }
+  }
+
   Widget _buildBottomNavigation() {
     final isLastPage = _currentPage >= AppConstants.onboardingData.length;
     final isFirstPage = _currentPage == 0;
+    final canProceed = isLastPage
+        ? _nameController.text.trim().isNotEmpty &&
+        _birthDateController.text.isNotEmpty &&
+        _getAgeFromBirthDate() >= 10
+        : true;
 
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -303,7 +371,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             children: [
               if (!isFirstPage)
                 TextButton(
-                  onPressed: _previousPage,
+                  onPressed: _isLoading ? null : _previousPage,
                   child: const Text('Anterior'),
                 ),
               const Spacer(),
@@ -311,7 +379,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 SizedBox(
                   width: 120,
                   child: ElevatedButton(
-                    onPressed: _isLoading ? null : _completeOnboarding,
+                    onPressed: (_isLoading || !canProceed) ? null : _completeOnboarding,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppConstants.primaryColor,
                       foregroundColor: Colors.white,

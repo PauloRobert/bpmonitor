@@ -14,11 +14,21 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const HistoryScreen(),
-    const ReportsScreen(), // TODO: Implementar
-  ];
+  // ✅ FIX: Usar GlobalKey com interfaces públicas
+  final GlobalKey<State<HomeScreen>> _homeKey = GlobalKey<State<HomeScreen>>();
+  final GlobalKey<State<HistoryScreen>> _historyKey = GlobalKey<State<HistoryScreen>>();
+
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      HomeScreen(key: _homeKey),
+      HistoryScreen(key: _historyKey),
+      const ReportsScreen(),
+    ];
+  }
 
   final List<NavigationItem> _navigationItems = [
     NavigationItem(
@@ -51,20 +61,49 @@ class _MainNavigationState extends State<MainNavigation> {
     }
   }
 
-  void _onAddPressed() {
+  // ✅ FIX: Implementar corretamente o FAB com refresh das telas usando interfaces
+  void _onAddPressed() async {
     AppConstants.logNavigation('MainNavigation', 'AddMeasurementScreen');
 
-    Navigator.of(context).push(
+    final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const AddMeasurementScreen(),
       ),
-    ).then((result) {
-      // Se uma medição foi salva, atualiza a tela atual
-      if (result == true && _currentIndex == 0) {
-        // Força rebuild da HomeScreen
-        setState(() {});
+    );
+
+    // ✅ FIX: Se uma medição foi salva, atualiza as telas relevantes
+    if (result == true) {
+      // Atualiza a HomeScreen se estiver na aba Home
+      if (_currentIndex == 0) {
+        final homeState = _homeKey.currentState;
+        if (homeState is HomeScreenController) {
+          (homeState as HomeScreenController).refreshData();
+        }
       }
-    });
+
+      // Sempre atualiza o histórico quando uma medição é adicionada
+      final historyState = _historyKey.currentState;
+      if (historyState is HistoryScreenController) {
+        (historyState as HistoryScreenController).loadMeasurements();
+      }
+
+      // Mostra feedback de sucesso
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('Dados atualizados!'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   @override
