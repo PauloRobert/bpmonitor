@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_helper.dart';
 import '../../shared/models/measurement_model.dart';
+import 'dart:math';
 
 /// Interface pública para controlar a HistoryScreen externamente
 abstract class HistoryScreenController {
@@ -40,7 +41,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     '3months': 'Últimos 3 meses',
   };
 
-  bool _showHeartRate = false;
+  bool _showHeartRate = true;
 
   @override
   void initState() {
@@ -460,16 +461,33 @@ class _HistoryScreenState extends State<HistoryScreen>
     );
   }
 
-  // ======== CHART VIEW ========
+// ======== CHART VIEW ========
   Widget _buildChartView() {
-    final data = _filteredMeasurements;
-    if (data.isEmpty) {
+    if (_filteredMeasurements.isEmpty) {
       return Center(
         child: Text(
           'Nenhuma medição para exibir',
           style: TextStyle(color: AppConstants.textSecondary),
         ),
       );
+    }
+
+    final data = _filteredMeasurements;
+
+    // Calcula minY e maxY considerando pressão e opcionalmente frequência cardíaca
+    final systolicMin = data.map((m) => m.systolic.toDouble()).reduce(min);
+    final systolicMax = data.map((m) => m.systolic.toDouble()).reduce(max);
+    final diastolicMin = data.map((m) => m.diastolic.toDouble()).reduce(min);
+    final diastolicMax = data.map((m) => m.diastolic.toDouble()).reduce(max);
+
+    double minY = min(systolicMin, diastolicMin) - 10;
+    double maxY = max(systolicMax, diastolicMax) + 10;
+
+    if (_showHeartRate) {
+      final hrMin = data.map((m) => m.heartRate.toDouble()).reduce(min);
+      final hrMax = data.map((m) => m.heartRate.toDouble()).reduce(max);
+      minY = min(minY, hrMin) - 10;
+      maxY = max(maxY, hrMax) + 10;
     }
 
     return Padding(
@@ -480,7 +498,7 @@ class _HistoryScreenState extends State<HistoryScreen>
             children: [
               Switch(
                 value: _showHeartRate,
-                onChanged: (val) => setState(() => _showHeartRate = val),
+                onChanged: (v) => setState(() => _showHeartRate = v),
                 activeColor: AppConstants.primaryColor,
               ),
               const SizedBox(width: 8),
@@ -491,6 +509,8 @@ class _HistoryScreenState extends State<HistoryScreen>
           Expanded(
             child: LineChart(
               LineChartData(
+                minY: minY,
+                maxY: maxY,
                 lineTouchData: LineTouchData(
                   enabled: true,
                   handleBuiltInTouches: true,
@@ -499,62 +519,86 @@ class _HistoryScreenState extends State<HistoryScreen>
                     tooltipPadding: const EdgeInsets.all(8),
                     getTooltipItems: (touchedSpots) {
                       return touchedSpots.map((spot) {
+                        if (spot == null) return null;
                         final index = spot.x.toInt();
-                        if (index >= _filteredMeasurements.length) return null;
-                        final m = _filteredMeasurements[index];
+                        if (index < 0 || index >= data.length) return null;
+                        final m = data[index];
+                        String tooltip = "${m.formattedDate}\n${m.systolic}/${m.diastolic} mmHg";
+                        if (_showHeartRate) {
+                          tooltip += "\n❤️ ${m.heartRate} bpm";
+                        }
                         return LineTooltipItem(
-                          "${m.formattedDate}\n${m.systolic}/${m.diastolic} mmHg\n❤️ ${m.heartRate} bpm",
+                          tooltip,
                           const TextStyle(
-                            color: Colors.black, // cor do texto
+                            color: Colors.black,
                             fontWeight: FontWeight.bold,
                           ),
                         );
-                      }).whereType<LineTooltipItem>().toList();
+                      }).toList();
                     },
                   ),
                 ),
-                gridData: FlGridData(show: true),
-                borderData: FlBorderData(show: true),
                 titlesData: FlTitlesData(
                   leftTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: true, reservedSize: 40)),
+                    sideTitles: SideTitles(showTitles: true, reservedSize: 40),
+                  ),
                   bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(showTitles: true, reservedSize: 30)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 1,
+                      getTitlesWidget: (value, meta) {
+                        final index = value.toInt();
+                        if (index < 0 || index >= data.length) return const SizedBox.shrink();
+                        final date = data[index].formattedDate;
+                        return Text(
+                          date,
+                          style: const TextStyle(fontSize: 10),
+                        );
+                      },
+                    ),
+                  ),
                   rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
+                gridData: FlGridData(show: true, drawVerticalLine: true),
+                borderData: FlBorderData(show: true, border: Border.all(color: Colors.black26)),
                 lineBarsData: [
+                  // Sistólica
                   LineChartBarData(
                     spots: List.generate(
-                        data.length,
-                            (index) =>
-                            FlSpot(index.toDouble(), data[index].systolic.toDouble())),
+                      data.length,
+                          (i) => FlSpot(i.toDouble(), data[i].systolic.toDouble()),
+                    ),
                     isCurved: true,
                     color: Colors.red,
-                    barWidth: 2,
-                    dotData: FlDotData(show: false),
+                    barWidth: 3,
+                    belowBarData: BarAreaData(show: true, color: Colors.red.withOpacity(0.2)),
+                    dotData: FlDotData(show: true),
                   ),
+                  // Diastólica
                   LineChartBarData(
                     spots: List.generate(
-                        data.length,
-                            (index) =>
-                            FlSpot(index.toDouble(), data[index].diastolic.toDouble())),
+                      data.length,
+                          (i) => FlSpot(i.toDouble(), data[i].diastolic.toDouble()),
+                    ),
                     isCurved: true,
                     color: Colors.blue,
-                    barWidth: 2,
-                    dotData: FlDotData(show: false),
+                    barWidth: 3,
+                    belowBarData: BarAreaData(show: true, color: Colors.blue.withOpacity(0.2)),
+                    dotData: FlDotData(show: true),
                   ),
+                  // Frequência cardíaca opcional
                   if (_showHeartRate)
                     LineChartBarData(
                       spots: List.generate(
-                          data.length,
-                              (index) =>
-                              FlSpot(index.toDouble(), data[index].heartRate.toDouble())),
+                        data.length,
+                            (i) => FlSpot(i.toDouble(), data[i].heartRate.toDouble()),
+                      ),
                       isCurved: true,
                       color: Colors.green,
                       barWidth: 2,
-                      dotData: FlDotData(show: false),
                       dashArray: [5, 5],
+                      dotData: FlDotData(show: true),
                     ),
                 ],
               ),
@@ -564,4 +608,8 @@ class _HistoryScreenState extends State<HistoryScreen>
       ),
     );
   }
+
+// ======== CHART VIEW ========
+
+
 }
