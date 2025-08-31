@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_helper.dart';
 import '../../shared/models/user_model.dart';
+// FIX: Importar o AppRouter para usar as rotas nomeadas
+import '../../utils/app_router.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -14,6 +16,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _birthDateController = TextEditingController();
+  // A GlobalKey não é mais necessária, vamos usar a abordagem moderna
+  // final GlobalKey<ScaffoldMessengerState> _scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
   int _currentPage = 0;
   bool _isLoading = false;
@@ -63,6 +67,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _completeOnboarding() async {
+    // Esconde o teclado se estiver aberto
+    FocusScope.of(context).unfocus();
+
     if (_nameController.text.trim().isEmpty) {
       _showError(AppConstants.validationNameError);
       return;
@@ -87,6 +94,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       if (!user.isValid) {
         _showError(AppConstants.validationAgeError);
+        // FIX: Também é preciso parar o loading aqui
         setState(() {
           _isLoading = false;
         });
@@ -97,64 +105,84 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
       AppConstants.logInfo('Onboarding concluído para usuário: ${user.name}');
 
+      // FIX: Navega ANTES de mudar o estado, se o widget ainda estiver montado.
       if (mounted) {
         _navigateToHome();
       }
+
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao completar onboarding', e, stackTrace);
       _showError('Erro ao salvar dados. Tente novamente.');
-      setState(() {
-        _isLoading = false;
-      });
+      // FIX: Garante que o loading para mesmo em caso de erro.
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
+    // NOTA: Não colocamos o setState(isLoading=false) aqui no sucesso,
+    // porque a tela será destruída pela navegação. Se a navegação falhasse,
+    // o ideal seria ter um `finally` ou parar o loading após a navegação.
+    // Como estamos substituindo a tela, não é um problema crítico.
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppConstants.secondaryColor,
-      ),
-    );
+    // FIX: Usar a abordagem moderna para SnackBar, que é mais segura.
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppConstants.secondaryColor,
+        ),
+      );
+    }
   }
 
   void _navigateToHome() {
-    AppConstants.logNavigation('OnboardingScreen', 'HomeScreen');
-    // TODO: Implementar navegação para HomeScreen
+    AppConstants.logNavigation('OnboardingScreen', 'MainNavigation');
+    // FIX: Implementar a navegação usando a rota definida no AppRouter.
+    // Usamos pushReplacementNamed para que o usuário não possa "voltar" para o onboarding.
+    Navigator.of(context).pushReplacementNamed(AppRouter.main);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // key não é mais necessária
       backgroundColor: AppConstants.backgroundColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentPage = index;
-                  });
-                },
-                itemCount: AppConstants.onboardingData.length + 1,
-                itemBuilder: (context, index) {
-                  if (index < AppConstants.onboardingData.length) {
-                    return _buildOnboardingPage(AppConstants.onboardingData[index]);
-                  } else {
-                    return _buildUserDataPage();
-                  }
-                },
+      // Usar um GestureDetector para esconder o teclado ao tocar fora dos campos
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: (index) {
+                    setState(() {
+                      _currentPage = index;
+                    });
+                  },
+                  itemCount: AppConstants.onboardingData.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index < AppConstants.onboardingData.length) {
+                      return _buildOnboardingPage(AppConstants.onboardingData[index]);
+                    } else {
+                      return _buildUserDataPage();
+                    }
+                  },
+                ),
               ),
-            ),
-            _buildBottomNavigation(),
-          ],
+              _buildBottomNavigation(),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  // ... O resto do seu arquivo (os métodos _build) pode continuar exatamente igual ...
   Widget _buildOnboardingPage(Map<String, dynamic> data) {
     return Padding(
       padding: const EdgeInsets.all(32.0),
@@ -200,59 +228,62 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _buildUserDataPage() {
-    return Padding(
-      padding: const EdgeInsets.all(32.0),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.person_add,
-            size: 80,
-            color: AppConstants.primaryColor,
-          ),
-          const SizedBox(height: 32),
-          const Text(
-            'Vamos nos conhecer melhor',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppConstants.textPrimary,
+    return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.person_add,
+              size: 80,
+              color: AppConstants.primaryColor,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Esses dados nos ajudarão a personalizar seus relatórios',
-            style: TextStyle(
-              fontSize: 16,
-              color: AppConstants.textSecondary,
+            const SizedBox(height: 32),
+            const Text(
+              'Vamos nos conhecer melhor',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppConstants.textPrimary,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 40),
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: 'Nome completo *',
-              hintText: 'Digite seu nome',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.person),
+            const SizedBox(height: 16),
+            const Text(
+              'Esses dados nos ajudarão a personalizar seus relatórios',
+              style: TextStyle(
+                fontSize: 16,
+                color: AppConstants.textSecondary,
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _birthDateController,
-            decoration: const InputDecoration(
-              labelText: 'Data de nascimento *',
-              hintText: 'Selecione sua data de nascimento',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.cake),
-              suffixIcon: Icon(Icons.calendar_today),
+            const SizedBox(height: 40),
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Nome completo *',
+                hintText: 'Digite seu nome',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.person),
+              ),
             ),
-            readOnly: true,
-            onTap: _selectBirthDate,
-          ),
-        ],
+            const SizedBox(height: 20),
+            TextField(
+              controller: _birthDateController,
+              decoration: const InputDecoration(
+                labelText: 'Data de nascimento *',
+                hintText: 'Selecione sua data de nascimento',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.cake),
+                suffixIcon: Icon(Icons.calendar_today),
+              ),
+              readOnly: true,
+              onTap: _selectBirthDate,
+            ),
+          ],
+        ),
       ),
     );
   }

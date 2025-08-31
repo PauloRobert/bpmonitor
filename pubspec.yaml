@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_localizations:
-      sdk: flutter
+    sdk: flutter
 
   # State Management
   flutter_riverpod: ^2.5.1
@@ -22,3 +22,16 @@ dependencies:
 
   # Local Storage
   shared_preferences: ^2.2.3
+
+
+flutter:
+  uses-material-design: true
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter_Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter_SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter_Bold.ttf
+          weight: 700

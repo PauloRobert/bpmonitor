@@ -104,12 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppConstants.backgroundColor,
       body: SafeArea(
         child: _isLoading ? _buildLoadingState() : _buildContent(),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _navigateToAddMeasurement,
-        backgroundColor: AppConstants.primaryColor,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      ), //termina aqui
     );
   }
 

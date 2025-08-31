@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/constants/app_constants.dart';
 import 'utils/app_router.dart';
+// FIX: Importar o pacote de localização
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
   runApp(
@@ -20,6 +21,19 @@ class BPMonitorApp extends StatelessWidget {
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
+
+      // FIX: Adicionar delegates e locales suportados
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('pt', 'BR'), // Português, Brasil
+        // Você pode adicionar outros locales aqui se precisar
+      ],
+      locale: const Locale('pt', 'BR'), // Define o locale padrão do app
+
       theme: ThemeData(
         primarySwatch: _createMaterialColor(AppConstants.primaryColor),
         primaryColor: AppConstants.primaryColor,
@@ -69,22 +83,14 @@ class BPMonitorApp extends StatelessWidget {
           ),
         ),
       ),
-      // --- ALTERAÇÕES AQUI ---
-      supportedLocales: const [
-        Locale('en', 'US'), // Inglês
-        Locale('pt', 'BR'), // Português
-      ],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      // --- FIM DAS ALTERAÇÕES ---
+      // Seu onGenerateRoute e home continuam os mesmos
       onGenerateRoute: AppRouter.generateRoute,
+      initialRoute: AppRouter.splash, // É uma boa prática definir a rota inicial aqui
       home: const AppInitializer(),
     );
   }
 
+  // ... (o resto do seu arquivo main.dart pode continuar igual)
   MaterialColor _createMaterialColor(Color color) {
     List strengths = <double>[.05];
     Map<int, Color> swatch = {};
