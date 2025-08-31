@@ -3,6 +3,13 @@ import '../../core/constants/app_constants.dart';
 import '../../core/database/database_helper.dart';
 import '../../shared/models/user_model.dart';
 import '../../shared/models/measurement_model.dart';
+import '../measurements/add_measurement_screen.dart';
+import '../history/history_screen.dart';
+
+// ✅ Interface pública para controle externo
+abstract class HomeScreenController {
+  void refreshData();
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,7 +18,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> implements HomeScreenController {
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   UserModel? _user;
@@ -23,6 +30,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  // ✅ Implementação da interface pública
+  @override
+  void refreshData() {
+    _refreshData();
   }
 
   Future<void> _loadData() async {
@@ -89,13 +102,38 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Boa noite';
   }
 
-  void _navigateToAddMeasurement() {
+  void _navigateToAddMeasurement() async {
     AppConstants.logNavigation('HomeScreen', 'AddMeasurementScreen');
-    // TODO: Implementar navegação para tela de adicionar medição
+
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const AddMeasurementScreen(),
+      ),
+    );
+
+    if (result == true) {
+      _refreshData();
+    }
+  }
+
+  void _navigateToHistory() async {
+    AppConstants.logNavigation('HomeScreen', 'HistoryScreen');
+
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const HistoryScreen(),
+      ),
+    );
+
+    if (result == true) {
+      _refreshData();
+    }
   }
 
   Future<void> _refreshData() async {
-    await _loadData();
+    if (mounted) {
+      await _loadData();
+    }
   }
 
   @override
@@ -104,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppConstants.backgroundColor,
       body: SafeArea(
         child: _isLoading ? _buildLoadingState() : _buildContent(),
-      ), //termina aqui
+      ),
     );
   }
 
@@ -243,6 +281,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _navigateToAddMeasurement,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Adicionar Primeira Medição'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppConstants.primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              ),
+            ),
           ],
         ),
       ),
@@ -254,7 +303,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final diastolic = _weeklyAverage['diastolic']!.round();
     final heartRate = _weeklyAverage['heartRate']!.round();
 
-    // Criar medição temporária para classificação
     final tempMeasurement = MeasurementModel(
       systolic: systolic,
       diastolic: diastolic,
@@ -352,10 +400,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             TextButton(
-              onPressed: () {
-                AppConstants.logNavigation('HomeScreen', 'HistoryScreen');
-                // TODO: Navegar para histórico completo
-              },
+              onPressed: _navigateToHistory,
               child: const Text(
                 'Ver todas',
                 style: TextStyle(
