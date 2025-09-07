@@ -11,20 +11,33 @@ class DatabaseHelper {
   DatabaseHelper._internal();
 
   Database? _database;
+  Completer<Database>? _dbCompleter;
 
+  // CORREÇÃO: Lazy initialization com Completer
   Future<Database> get database async {
-    _database ??= await _initDatabase();
-    return _database!;
+    if (_database != null) return _database!;
+
+    if (_dbCompleter != null) {
+      return _dbCompleter!.future;
+    }
+
+    _dbCompleter = Completer<Database>();
+
+    try {
+      _database = await _initDatabase();
+      _dbCompleter!.complete(_database!);
+      return _database!;
+    } catch (e) {
+      _dbCompleter!.completeError(e);
+      _dbCompleter = null;
+      rethrow;
+    }
   }
 
   Future<Database> _initDatabase() async {
     try {
-      AppConstants.logInfo('Inicializando database...');
-
       final dbPath = await getDatabasesPath();
       final path = join(dbPath, AppConstants.databaseName);
-
-      AppConstants.logDatabase('init', 'database', 'Path: $path');
 
       return await openDatabase(
         path,
@@ -40,8 +53,6 @@ class DatabaseHelper {
 
   Future<void> _onCreate(Database db, int version) async {
     try {
-      AppConstants.logDatabase('onCreate', 'all_tables', 'Version: $version');
-
       // Tabela de usuários
       await db.execute('''
         CREATE TABLE ${AppConstants.usersTable} (
@@ -65,8 +76,6 @@ class DatabaseHelper {
           notes TEXT
         )
       ''');
-
-      AppConstants.logDatabase('onCreate', 'all_tables', 'Tabelas criadas com sucesso');
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao criar tabelas', e, stackTrace);
       rethrow;
@@ -74,7 +83,6 @@ class DatabaseHelper {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    AppConstants.logDatabase('onUpgrade', 'database', 'From v$oldVersion to v$newVersion');
     // Futuras migrações aqui
   }
 
@@ -84,7 +92,6 @@ class DatabaseHelper {
     try {
       final db = await database;
       final id = await db.insert(AppConstants.usersTable, user.toMap());
-      AppConstants.logDatabase('insert', AppConstants.usersTable, 'ID: $id, Name: ${user.name}');
       return id;
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao inserir usuário', e, stackTrace);
@@ -101,14 +108,8 @@ class DatabaseHelper {
         limit: 1,
       );
 
-      if (maps.isEmpty) {
-        AppConstants.logDatabase('select', AppConstants.usersTable, 'Nenhum usuário encontrado');
-        return null;
-      }
-
-      final user = UserModel.fromMap(maps.first);
-      AppConstants.logDatabase('select', AppConstants.usersTable, 'User: ${user.name}');
-      return user;
+      if (maps.isEmpty) return null;
+      return UserModel.fromMap(maps.first);
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao buscar usuário', e, stackTrace);
       return null;
@@ -124,7 +125,6 @@ class DatabaseHelper {
         where: 'id = ?',
         whereArgs: [user.id],
       );
-      AppConstants.logDatabase('update', AppConstants.usersTable, 'Rows affected: $updatedRows');
       return updatedRows;
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao atualizar usuário', e, stackTrace);
@@ -138,7 +138,6 @@ class DatabaseHelper {
     try {
       final db = await database;
       final id = await db.insert(AppConstants.measurementsTable, measurement.toMap());
-      AppConstants.logDatabase('insert', AppConstants.measurementsTable, 'ID: $id, BP: ${measurement.systolic}/${measurement.diastolic}');
       return id;
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao inserir medição', e, stackTrace);
@@ -154,9 +153,7 @@ class DatabaseHelper {
         orderBy: 'measured_at DESC',
       );
 
-      final measurements = maps.map((map) => MeasurementModel.fromMap(map)).toList();
-      AppConstants.logDatabase('select', AppConstants.measurementsTable, 'Count: ${measurements.length}');
-      return measurements;
+      return maps.map((map) => MeasurementModel.fromMap(map)).toList();
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao buscar medições', e, stackTrace);
       return [];
@@ -172,9 +169,7 @@ class DatabaseHelper {
         limit: limit,
       );
 
-      final measurements = maps.map((map) => MeasurementModel.fromMap(map)).toList();
-      AppConstants.logDatabase('select', AppConstants.measurementsTable, 'Recent count: ${measurements.length}');
-      return measurements;
+      return maps.map((map) => MeasurementModel.fromMap(map)).toList();
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao buscar medições recentes', e, stackTrace);
       return [];
@@ -191,9 +186,7 @@ class DatabaseHelper {
         orderBy: 'measured_at DESC',
       );
 
-      final measurements = maps.map((map) => MeasurementModel.fromMap(map)).toList();
-      AppConstants.logDatabase('select', AppConstants.measurementsTable, 'Range count: ${measurements.length}');
-      return measurements;
+      return maps.map((map) => MeasurementModel.fromMap(map)).toList();
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao buscar medições por período', e, stackTrace);
       return [];
@@ -209,7 +202,6 @@ class DatabaseHelper {
         where: 'id = ?',
         whereArgs: [measurement.id],
       );
-      AppConstants.logDatabase('update', AppConstants.measurementsTable, 'Rows affected: $updatedRows');
       return updatedRows;
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao atualizar medição', e, stackTrace);
@@ -225,7 +217,6 @@ class DatabaseHelper {
         where: 'id = ?',
         whereArgs: [id],
       );
-      AppConstants.logDatabase('delete', AppConstants.measurementsTable, 'ID: $id, Rows affected: $deletedRows');
       return deletedRows;
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao deletar medição', e, stackTrace);
@@ -233,14 +224,11 @@ class DatabaseHelper {
     }
   }
 
-  // ========== OPERAÇÕES DE LIMPEZA ==========
-
   Future<void> clearAllData() async {
     try {
       final db = await database;
       await db.delete(AppConstants.measurementsTable);
       await db.delete(AppConstants.usersTable);
-      AppConstants.logDatabase('delete', 'all_tables', 'Todos os dados removidos');
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao limpar dados', e, stackTrace);
       rethrow;
@@ -253,7 +241,6 @@ class DatabaseHelper {
       if (db != null) {
         await db.close();
         _database = null;
-        AppConstants.logDatabase('close', 'database', 'Conexão fechada');
       }
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao fechar database', e, stackTrace);
