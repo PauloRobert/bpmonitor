@@ -6,7 +6,6 @@ import '../../shared/models/measurement_model.dart';
 import '../measurements/add_measurement_screen.dart';
 import '../history/history_screen.dart';
 
-// ✅ Interface pública para controle externo
 abstract class HomeScreenController {
   void refreshData();
 }
@@ -18,7 +17,13 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> implements HomeScreenController {
+class _HomeScreenState extends State<HomeScreen>
+    with AutomaticKeepAliveClientMixin // NOVO: Mantém estado ao trocar de aba
+    implements HomeScreenController {
+
+  @override
+  bool get wantKeepAlive => true; // NOVO: Evita recarregar ao trocar de aba
+
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   UserModel? _user;
@@ -32,7 +37,6 @@ class _HomeScreenState extends State<HomeScreen> implements HomeScreenController
     _loadData();
   }
 
-  // ✅ Implementação da interface pública
   @override
   void refreshData() {
     _refreshData();
@@ -46,6 +50,8 @@ class _HomeScreenState extends State<HomeScreen> implements HomeScreenController
       final measurements = await _dbHelper.getRecentMeasurements(limit: 3);
       final weeklyData = await _calculateWeeklyAverage();
 
+      if (!mounted) return; // NOVO: Verifica se widget ainda está montado
+
       setState(() {
         _user = user;
         _recentMeasurements = measurements;
@@ -56,9 +62,11 @@ class _HomeScreenState extends State<HomeScreen> implements HomeScreenController
       AppConstants.logInfo('Dados carregados - Usuário: ${user?.name}, Medições: ${measurements.length}');
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao carregar dados da home', e, stackTrace);
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -138,6 +146,8 @@ class _HomeScreenState extends State<HomeScreen> implements HomeScreenController
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // NOVO: Necessário para AutomaticKeepAliveClientMixin
+
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
       body: SafeArea(
@@ -184,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> implements HomeScreenController
         Container(
           width: 60,
           height: 60,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration( // CONST adicionado
             gradient: AppConstants.logoGradient,
             shape: BoxShape.circle,
           ),
@@ -233,15 +243,15 @@ class _HomeScreenState extends State<HomeScreen> implements HomeScreenController
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row( // CONST adicionado
               children: [
-                const Icon(
+                Icon(
                   Icons.analytics,
                   color: AppConstants.primaryColor,
                   size: 20,
                 ),
-                const SizedBox(width: 8),
-                const Text(
+                SizedBox(width: 8),
+                Text(
                   'Média da Última Semana',
                   style: TextStyle(
                     fontSize: 16,
