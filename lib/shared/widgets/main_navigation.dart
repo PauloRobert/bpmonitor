@@ -3,6 +3,7 @@ import '../../core/constants/app_constants.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/history/history_screen.dart';
 import '../../features/measurements/add_measurement_screen.dart';
+import '../../features/profile/profile_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -27,13 +28,14 @@ class _MainNavigationState extends State<MainNavigation> {
       HomeScreen(key: _homeKey),
       HistoryScreen(key: _historyKey),
       const ReportsScreen(),
+      const ProfileScreen(),
     ];
   }
 
   final List<NavigationItem> _navigationItems = [
     NavigationItem(
-      icon: Icons.home_outlined,
-      activeIcon: Icons.home,
+      icon: Icons.description_outlined,
+      activeIcon: Icons.description,
       label: 'Hoje',
     ),
     NavigationItem(
@@ -45,6 +47,11 @@ class _MainNavigationState extends State<MainNavigation> {
       icon: Icons.description_outlined,
       activeIcon: Icons.description,
       label: 'Relatórios',
+    ),
+    NavigationItem(
+      icon: Icons.person_outline,
+      activeIcon: Icons.person,
+      label: 'Perfil',
     ),
   ];
 
