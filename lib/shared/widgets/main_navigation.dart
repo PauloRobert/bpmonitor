@@ -15,11 +15,12 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
-  // ✅ FIX: Usar GlobalKey com interfaces públicas
   final GlobalKey<State<HomeScreen>> _homeKey = GlobalKey<State<HomeScreen>>();
   final GlobalKey<State<HistoryScreen>> _historyKey = GlobalKey<State<HistoryScreen>>();
 
   late final List<Widget> _screens;
+
+  final PageController _pageController = PageController();
 
   @override
   void initState() {
@@ -30,6 +31,12 @@ class _MainNavigationState extends State<MainNavigation> {
       const ReportsScreen(),
       const ProfileScreen(),
     ];
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   final List<NavigationItem> _navigationItems = [
@@ -60,53 +67,63 @@ class _MainNavigationState extends State<MainNavigation> {
       setState(() {
         _currentIndex = index;
       });
+      _pageController.jumpToPage(index);
 
-      AppConstants.logNavigation(
-        _navigationItems[_currentIndex].label,
-        _navigationItems[index].label,
-      );
+      try {
+        AppConstants.logNavigation(
+          _navigationItems[_currentIndex].label,
+          _navigationItems[index].label,
+        );
+      } catch (e) {
+        debugPrint('Erro ao logar navegação: $e');
+      }
     }
   }
 
-  // ✅ FIX: Implementar corretamente o FAB com refresh das telas usando interfaces
   void _onAddPressed() async {
-    AppConstants.logNavigation('MainNavigation', 'AddMeasurementScreen');
+    try {
+      AppConstants.logNavigation('MainNavigation', 'AddMeasurementScreen');
+      final result = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const AddMeasurementScreen(),
+        ),
+      );
 
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const AddMeasurementScreen(),
-      ),
-    );
+      if (result == true) {
+        if (_currentIndex == 0) {
+          final homeState = _homeKey.currentState;
+          if (homeState is HomeScreenController) {
+            (homeState as HomeScreenController).refreshData();
+          }
+        }
+        final historyState = _historyKey.currentState;
+        if (historyState is HistoryScreenController) {
+          (historyState as HistoryScreenController).loadMeasurements();
+        }
 
-    // ✅ FIX: Se uma medição foi salva, atualiza as telas relevantes
-    if (result == true) {
-      // Atualiza a HomeScreen se estiver na aba Home
-      if (_currentIndex == 0) {
-        final homeState = _homeKey.currentState;
-        if (homeState is HomeScreenController) {
-          (homeState as HomeScreenController).refreshData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  SizedBox(width: 8),
+                  Text('Dados atualizados!', style: TextStyle(color: Colors.white)),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
         }
       }
-
-      // Sempre atualiza o histórico quando uma medição é adicionada
-      final historyState = _historyKey.currentState;
-      if (historyState is HistoryScreenController) {
-        (historyState as HistoryScreenController).loadMeasurements();
-      }
-
-      // Mostra feedback de sucesso
+    } catch (e) {
+      debugPrint('Erro ao adicionar medição: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text('Dados atualizados!'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text('Erro: Não foi possível adicionar a medição.'),
+            backgroundColor: Colors.red,
           ),
         );
       }
@@ -116,42 +133,37 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
+      extendBody: true,
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
         children: _screens,
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
       floatingActionButton: _buildFloatingActionButton(),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
   Widget _buildBottomNavigationBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
+    return BottomAppBar(
+      shape: const CircularNotchedRectangle(),
+      notchMargin: 8.0,
+      elevation: 10,
+      color: Colors.white,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildNavItem(0),
+          _buildNavItem(1),
+          const SizedBox(width: 48),
+          _buildNavItem(2),
+          _buildNavItem(3),
         ],
-      ),
-      child: SafeArea(
-        child: Container(
-          height: 70,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              for (int i = 0; i < _navigationItems.length; i++) ...[
-                if (i == 1) const SizedBox(width: 60), // Espaço para FAB
-                _buildNavItem(i),
-              ],
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -160,43 +172,39 @@ class _MainNavigationState extends State<MainNavigation> {
     final item = _navigationItems[index];
     final isActive = index == _currentIndex;
 
-    return GestureDetector(
-      onTap: () => _onTabSelected(index),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isActive ? item.activeIcon : item.icon,
-              color: isActive
-                  ? AppConstants.primaryColor
-                  : AppConstants.textSecondary,
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              item.label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                color: isActive
-                    ? AppConstants.primaryColor
-                    : AppConstants.textSecondary,
+    return Expanded(
+      child: InkWell(
+        onTap: () => _onTabSelected(index),
+        child: SizedBox(
+          height: 60,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isActive ? item.activeIcon : item.icon,
+                color: isActive ? AppConstants.primaryColor : AppConstants.textSecondary,
+                size: 24,
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                item.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  color: isActive ? AppConstants.primaryColor : AppConstants.textSecondary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  //Botão gradiente
   Widget _buildFloatingActionButton() {
     return Container(
-      width: 40,
-      height: 40,
+      width: 56,
+      height: 56,
       decoration: BoxDecoration(
         gradient: AppConstants.logoGradient,
         shape: BoxShape.circle,
@@ -208,22 +216,18 @@ class _MainNavigationState extends State<MainNavigation> {
           ),
         ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _onAddPressed,
-          borderRadius: BorderRadius.circular(30),
-          child: const Icon(
-            Icons.add,
-            color: Colors.white,
-            size: 28,
-          ),
+      child: InkWell(
+        onTap: _onAddPressed,
+        borderRadius: BorderRadius.circular(30),
+        child: const Icon(
+          Icons.add,
+          color: Colors.white,
+          size: 28,
         ),
       ),
     );
   }
 }
-//Botão gradiente
 
 class NavigationItem {
   final IconData icon;
@@ -237,7 +241,6 @@ class NavigationItem {
   });
 }
 
-// Placeholder para a tela de relatórios
 class ReportsScreen extends StatelessWidget {
   const ReportsScreen({super.key});
 
@@ -291,4 +294,12 @@ class ReportsScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+abstract class HomeScreenController {
+  void refreshData();
+}
+
+abstract class HistoryScreenController {
+  void loadMeasurements();
 }
