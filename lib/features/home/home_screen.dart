@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_helper.dart';
+import '../../core/database/database_service.dart';
 import '../../shared/models/user_model.dart';
 import '../../shared/models/measurement_model.dart';
 import '../measurements/add_measurement_screen.dart';
@@ -24,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   bool get wantKeepAlive => true; // NOVO: Evita recarregar ao trocar de aba
 
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final db = DatabaseService.instance;
 
   UserModel? _user;
   List<MeasurementModel> _recentMeasurements = [];
@@ -46,8 +47,8 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       AppConstants.logInfo('Carregando dados da tela principal');
 
-      final user = await _dbHelper.getUser();
-      final measurements = await _dbHelper.getRecentMeasurements(limit: 3);
+      final user = await db.getUser();
+      final measurements = await db.getRecentMeasurements(limit: 3);
       final weeklyData = await _calculateWeeklyAverage();
 
       if (!mounted) return; // NOVO: Verifica se widget ainda está montado
@@ -75,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen>
       final endDate = DateTime.now();
       final startDate = endDate.subtract(const Duration(days: 7));
 
-      final measurements = await _dbHelper.getMeasurementsInRange(startDate, endDate);
+      final measurements = await db.getMeasurementsInRange(startDate, endDate);
 
       if (measurements.isEmpty) {
         return {};

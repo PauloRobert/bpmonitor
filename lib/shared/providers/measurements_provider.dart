@@ -1,5 +1,6 @@
 // measurements_provider.dart - CORRIGIDO
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/database/database_service.dart';
 import '../models/measurement_model.dart';
 import '../../core/database/database_helper.dart';
 import '../../core/constants/app_constants.dart';
@@ -20,12 +21,12 @@ class MeasurementsNotifier extends StateNotifier<AsyncValue<List<MeasurementMode
   // CORREÇÃO: Não carrega automaticamente
   MeasurementsNotifier() : super(const AsyncValue.data([]));
 
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final db = DatabaseService.instance;
 
   Future<void> loadMeasurements() async {
     try {
       state = const AsyncValue.loading();
-      final measurements = await _dbHelper.getAllMeasurements();
+      final measurements = await db.getAllMeasurements();
       state = AsyncValue.data(measurements);
     } catch (e, stackTrace) {
       state = AsyncValue.error(e, stackTrace);
@@ -34,7 +35,7 @@ class MeasurementsNotifier extends StateNotifier<AsyncValue<List<MeasurementMode
 
   Future<void> addMeasurement(MeasurementModel measurement) async {
     try {
-      await _dbHelper.insertMeasurement(measurement);
+      await db.insertMeasurement(measurement);
       await loadMeasurements();
     } catch (e, stackTrace) {
       state = AsyncValue.error(e, stackTrace);
@@ -43,7 +44,7 @@ class MeasurementsNotifier extends StateNotifier<AsyncValue<List<MeasurementMode
 
   Future<void> updateMeasurement(MeasurementModel measurement) async {
     try {
-      await _dbHelper.updateMeasurement(measurement);
+      await db.updateMeasurement(measurement);
       await loadMeasurements();
     } catch (e, stackTrace) {
       state = AsyncValue.error(e, stackTrace);
@@ -52,7 +53,7 @@ class MeasurementsNotifier extends StateNotifier<AsyncValue<List<MeasurementMode
 
   Future<void> deleteMeasurement(int id) async {
     try {
-      await _dbHelper.deleteMeasurement(id);
+      await db.deleteMeasurement(id);
       await loadMeasurements();
     } catch (e, stackTrace) {
       state = AsyncValue.error(e, stackTrace);
@@ -64,12 +65,12 @@ class RecentMeasurementsNotifier extends StateNotifier<AsyncValue<List<Measureme
   // CORREÇÃO: Não carrega automaticamente
   RecentMeasurementsNotifier() : super(const AsyncValue.data([]));
 
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final db = DatabaseService.instance;
 
   Future<void> loadRecentMeasurements({int limit = 3}) async {
     try {
       state = const AsyncValue.loading();
-      final measurements = await _dbHelper.getRecentMeasurements(limit: limit);
+      final measurements = await db.getRecentMeasurements(limit: limit);
       state = AsyncValue.data(measurements);
     } catch (e, stackTrace) {
       state = AsyncValue.error(e, stackTrace);
@@ -85,7 +86,7 @@ class WeeklyAverageNotifier extends StateNotifier<AsyncValue<Map<String, double>
   // CORREÇÃO: Não carrega automaticamente
   WeeklyAverageNotifier() : super(const AsyncValue.data({}));
 
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final db = DatabaseService.instance;
 
   Future<void> calculateWeeklyAverage() async {
     try {
@@ -93,7 +94,7 @@ class WeeklyAverageNotifier extends StateNotifier<AsyncValue<Map<String, double>
 
       final endDate = DateTime.now();
       final startDate = endDate.subtract(const Duration(days: 7));
-      final measurements = await _dbHelper.getMeasurementsInRange(startDate, endDate);
+      final measurements = await db.getMeasurementsInRange(startDate, endDate);
 
       if (measurements.isEmpty) {
         state = const AsyncValue.data({});

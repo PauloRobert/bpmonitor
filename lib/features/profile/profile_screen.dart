@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_helper.dart';
+import '../../core/database/database_service.dart';
 import '../../shared/models/user_model.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -12,7 +13,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final db = DatabaseService.instance;
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _nameController = TextEditingController();
@@ -40,7 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       setState(() => _isLoading = true);
 
-      final user = await _dbHelper.getUser();
+      final user = await db.getUser();
       if (user != null) {
         setState(() {
           _currentUser = user;
@@ -85,7 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         updatedAt: DateTime.now(),
       );
 
-      await _dbHelper.updateUser(updatedUser);
+      await db.updateUser(updatedUser);
 
       setState(() {
         _currentUser = updatedUser;

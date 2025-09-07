@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 // REMOVIDO: import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_helper.dart';
+import '../../core/database/database_service.dart';
 import '../../shared/models/measurement_model.dart';
 import 'dart:math';
 
@@ -20,7 +21,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     with SingleTickerProviderStateMixin
     implements HistoryScreenController {
   late TabController _tabController;
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final db = DatabaseService.instance;
 
   List<MeasurementModel> _measurements = [];
   List<MeasurementModel> _filteredMeasurements = [];
@@ -75,7 +76,7 @@ class _HistoryScreenState extends State<HistoryScreen>
         _isLoading = true;
         _currentPage = 0;
       });
-      final measurements = await _dbHelper.getAllMeasurements();
+      final measurements = await db.getAllMeasurements();
       setState(() {
         _measurements = measurements;
         _filteredMeasurements = _applyPeriodFilter(measurements);
@@ -138,7 +139,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     final confirmed = await _showDeleteDialog();
     if (confirmed == true) {
       try {
-        await _dbHelper.deleteMeasurement(measurement.id!);
+        await db.deleteMeasurement(measurement.id!);
         _loadMeasurements();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

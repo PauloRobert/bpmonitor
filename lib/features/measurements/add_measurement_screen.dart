@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_helper.dart';
+import '../../core/database/database_service.dart';
 import '../../shared/models/measurement_model.dart';
 
 class AddMeasurementScreen extends StatefulWidget {
@@ -18,7 +19,7 @@ class AddMeasurementScreen extends StatefulWidget {
 
 class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
   final _formKey = GlobalKey<FormState>();
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final db = DatabaseService.instance;
 
   final TextEditingController _systolicController = TextEditingController();
   final TextEditingController _diastolicController = TextEditingController();
@@ -249,10 +250,10 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
       );
 
       if (widget.measurementToEdit != null) {
-        await _dbHelper.updateMeasurement(measurement);
+        await db.updateMeasurement(measurement);
         AppConstants.logInfo('Medição atualizada: ${measurement.systolic}/${measurement.diastolic}');
       } else {
-        await _dbHelper.insertMeasurement(measurement);
+        await db.insertMeasurement(measurement);
         AppConstants.logInfo('Nova medição salva: ${measurement.systolic}/${measurement.diastolic}');
       }
 
