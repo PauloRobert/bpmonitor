@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 // REMOVIDO: import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/database/database_helper.dart';
 import '../../core/database/database_service.dart';
 import '../../shared/models/measurement_model.dart';
 import 'dart:math';
