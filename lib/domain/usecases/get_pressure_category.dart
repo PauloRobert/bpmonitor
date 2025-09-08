@@ -1,10 +1,16 @@
 import 'package:bp_monitor/core/remote_config/remote_config_service.dart';
 import 'package:flutter/material.dart';
+import 'package:bp_monitor/core/localization/app_strings.dart';
+import 'package:bp_monitor/core/di/injection_container.dart';
 
 class GetPressureCategory {
   final RemoteConfigService remoteConfig;
+  final AppStrings strings;
 
-  GetPressureCategory({required this.remoteConfig});
+  GetPressureCategory({
+    required this.remoteConfig,
+    required this.strings,
+  });
 
   // Retorna categoria da pressão baseada nos valores e configurações remotas
   String call({required int systolic, required int diastolic}) {
@@ -52,26 +58,26 @@ class GetPressureCategory {
   // Retorna o nome da categoria
   String getName(String category) {
     switch (category) {
-      case 'optimal': return 'Ótima';
-      case 'normal': return 'Normal';
-      case 'elevated': return 'Elevada';
-      case 'high_stage1': return 'Alta Estágio 1';
-      case 'high_stage2': return 'Alta Estágio 2';
-      case 'crisis': return 'Crise Hipertensiva';
-      default: return 'Normal';
+      case 'optimal': return strings.optimalCategory;
+      case 'normal': return strings.normalCategory;
+      case 'elevated': return strings.elevatedCategory;
+      case 'high_stage1': return strings.highStage1Category;
+      case 'high_stage2': return strings.highStage2Category;
+      case 'crisis': return strings.crisisCategory;
+      default: return strings.normalCategory;
     }
   }
 
   // Retorna a cor da categoria
   Color getColor(String category) {
     switch (category) {
-      case 'optimal': return const Color(0xFF10B981); // Verde
-      case 'normal': return const Color(0xFF3B82F6); // Azul
-      case 'elevated': return const Color(0xFFF59E0B); // Laranja
-      case 'high_stage1': return const Color(0xFFEF4444); // Vermelho claro
-      case 'high_stage2': return const Color(0xFFDC2626); // Vermelho escuro
-      case 'crisis': return const Color(0xFF7C3AED); // Roxo
-      default: return const Color(0xFF3B82F6); // Azul
+      case 'optimal': return remoteConfig.getColor('optimal_color');
+      case 'normal': return remoteConfig.getColor('normal_color');
+      case 'elevated': return remoteConfig.getColor('elevated_color');
+      case 'high_stage1': return remoteConfig.getColor('high_stage1_color');
+      case 'high_stage2': return remoteConfig.getColor('high_stage2_color');
+      case 'crisis': return remoteConfig.getColor('crisis_color');
+      default: return remoteConfig.getColor('normal_color');
     }
   }
 }

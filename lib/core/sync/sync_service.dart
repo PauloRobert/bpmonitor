@@ -1,9 +1,12 @@
+// core/sync/sync_service.dart
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:bp_monitor/core/utils/logger.dart';
 import 'package:bp_monitor/data/datasources/local/measurement_local_datasource.dart';
 import 'package:bp_monitor/core/network/network_info.dart';
+import 'package:bp_monitor/core/localization/app_strings.dart';
+import 'package:bp_monitor/core/remote_config/remote_config_service.dart';
 
 class SyncService {
   final FirebaseFirestore _firestore;
@@ -11,6 +14,8 @@ class SyncService {
   final MeasurementLocalDataSource _localDataSource;
   final NetworkInfo _networkInfo;
   final AppLogger _logger;
+  final AppStrings _strings;
+  final RemoteConfigService _remoteConfig;
 
   Timer? _syncTimer;
   bool _isSyncing = false;
@@ -21,16 +26,23 @@ class SyncService {
     required MeasurementLocalDataSource localDataSource,
     required NetworkInfo networkInfo,
     required AppLogger logger,
+    required AppStrings strings,
+    required RemoteConfigService remoteConfig,
   }) : _firestore = firestore,
         _auth = auth,
         _localDataSource = localDataSource,
         _networkInfo = networkInfo,
-        _logger = logger;
+        _logger = logger,
+        _strings = strings,
+        _remoteConfig = remoteConfig;
 
-  void startPeriodicSync({Duration interval = const Duration(minutes: 15)}) {
+  void startPeriodicSync() {
     _syncTimer?.cancel();
+    final intervalMinutes = _remoteConfig.getInt('sync_interval_minutes');
+    final interval = Duration(minutes: intervalMinutes);
+
     _syncTimer = Timer.periodic(interval, (_) => syncIfNeeded());
-    _logger.i('Sincronização periódica iniciada: intervalo de ${interval.inMinutes} minutos');
+    _logger.i('Sincronização periódica iniciada: intervalo de $intervalMinutes minutos');
   }
 
   void stopPeriodicSync() {
@@ -102,10 +114,10 @@ class SyncService {
         }
       }
 
-      _logger.i('Sincronização concluída');
+      _logger.i(_strings.syncComplete);
       return true;
     } catch (e) {
-      _logger.e('Erro durante sincronização', e);
+      _logger.e(_strings.get('sync_error', defaultValue: 'Erro durante sincronização'), e);
       return false;
     } finally {
       _isSyncing = false;

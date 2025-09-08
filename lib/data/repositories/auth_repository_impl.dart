@@ -1,3 +1,4 @@
+// data/repositories/auth_repository_impl.dart
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -8,22 +9,26 @@ import 'package:bp_monitor/domain/entities/user_entity.dart';
 import 'package:bp_monitor/domain/repositories/auth_repository.dart';
 import 'package:bp_monitor/data/models/user_model.dart';
 import 'package:bp_monitor/core/utils/logger.dart';
+import 'package:bp_monitor/core/localization/app_strings.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final FirebaseAuth _firebaseAuth;
   final GoogleSignIn _googleSignIn;
   final FirebaseFirestore _firestore;
   final AppLogger _logger;
+  final AppStrings _strings;
 
   AuthRepositoryImpl({
     required FirebaseAuth firebaseAuth,
     required GoogleSignIn googleSignIn,
     required FirebaseFirestore firestore,
     required AppLogger logger,
+    required AppStrings strings,
   }) : _firebaseAuth = firebaseAuth,
         _googleSignIn = googleSignIn,
         _firestore = firestore,
-        _logger = logger;
+        _logger = logger,
+        _strings = strings;
 
   @override
   Future<bool> isAuthenticated() async {
@@ -36,7 +41,7 @@ class AuthRepositoryImpl implements AuthRepository {
       // Iniciar fluxo de login
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
-        return Left(AuthFailure('Login cancelado pelo usuário'));
+        return Left(AuthFailure(_strings.loginCanceled));
       }
 
       // Obter credenciais de autenticação
@@ -51,7 +56,7 @@ class AuthRepositoryImpl implements AuthRepository {
       final user = userCredential.user;
 
       if (user == null) {
-        return Left(AuthFailure('Falha ao obter dados do usuário'));
+        return Left(AuthFailure(_strings.loginError));
       }
 
       // Verificar se o usuário já existe no Firestore

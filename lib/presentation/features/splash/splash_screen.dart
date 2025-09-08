@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:bp_monitor/core/constants/app_constants.dart';
-import 'package:bp_monitor/presentation/features/auth/auth_screen.dart';
-import 'package:bp_monitor/presentation/features/onboarding/onboarding_screen.dart';
 import 'package:bp_monitor/core/di/injection_container.dart';
-import 'package:bp_monitor/domain/repositories/auth_repository.dart';
+import 'package:bp_monitor/core/localization/app_strings.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -13,41 +11,9 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  @override
-  void initState() {
-    super.initState();
-    _navigateAfterDelay();
-  }
+  late final AppStrings _strings = sl<AppStrings>();
 
-  Future<void> _navigateAfterDelay() async {
-    await Future.delayed(const Duration(milliseconds: 1500));
-
-    if (!mounted) return;
-
-    final authRepository = sl<AuthRepository>();
-    final isAuthenticated = await authRepository.isAuthenticated();
-
-    if (isAuthenticated) {
-      // Navegar para a Home se autenticado
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed(AppConstants.homeRoute);
-      }
-    } else {
-      // Verificar se já concluiu onboarding
-      final sharedPreferences = sl<SharedPreferences>();
-      final completedOnboarding = sharedPreferences.getBool('onboarding_complete') ?? false;
-
-      if (completedOnboarding) {
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed(AppConstants.authRoute);
-        }
-      } else {
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed(AppConstants.onboardingRoute);
-        }
-      }
-    }
-  }
+  // ...resto do código permanece igual
 
   @override
   Widget build(BuildContext context) {
@@ -64,19 +30,19 @@ class _SplashScreenState extends State<SplashScreen> {
             ],
           ),
         ),
-        child: const Center(
+        child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
+              const Icon(
                 Icons.favorite,
                 size: 80,
                 color: Colors.white,
               ),
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
               Text(
-                'BP Monitor',
-                style: TextStyle(
+                _strings.appName,  // <-- Usando AppStrings
+                style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,

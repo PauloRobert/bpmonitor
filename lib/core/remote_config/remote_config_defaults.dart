@@ -39,12 +39,35 @@ class RemoteConfigDefaults {
     'enable_reports': true,
     'enable_notifications': true,
 
-    // Mensagens personalizáveis
-    'optimal_message': 'Sua pressão está ótima!',
-    'normal_message': 'Sua pressão está normal',
-    'elevated_message': 'Sua pressão está um pouco elevada',
-    'high_stage1_message': 'Sua pressão está alta, consulte seu médico',
-    'high_stage2_message': 'Sua pressão está muito alta, consulte seu médico',
-    'crisis_message': 'EMERGÊNCIA: Procure atendimento médico imediatamente',
+    // Strings do aplicativo - Geral
+    'str_app_name': 'BP Monitor',
+    'str_app_description': 'Monitore sua pressão arterial de forma simples e eficiente',
+
+    // Strings - Autenticação
+    'str_login_with_google': 'Entrar com Google',
+    'str_login_canceled': 'Login cancelado pelo usuário',
+    'str_login_error': 'Falha ao obter dados do usuário',
+    'str_unauthenticated': 'Usuário não autenticado',
+
+    // Strings - Categorias de pressão
+    'str_optimal_category': 'Ótima',
+    'str_normal_category': 'Normal',
+    'str_elevated_category': 'Elevada',
+    'str_high_stage1_category': 'Alta Estágio 1',
+    'str_high_stage2_category': 'Alta Estágio 2',
+    'str_crisis_category': 'Crise Hipertensiva',
+
+    // Strings - Mensagens de feedback
+    'str_measurement_saved': 'Medição salva com sucesso!',
+    'str_measurement_updated': 'Medição atualizada com sucesso!',
+    'str_measurement_deleted': 'Medição removida com sucesso!',
+    'str_sync_complete': 'Sincronização concluída',
+    'str_sync_error': 'Erro na sincronização',
+    'str_offline_mode': 'Modo offline ativado',
+
+    // Strings - Erros
+    'str_server_error': 'Erro ao carregar dados do servidor',
+    'str_cache_error': 'Erro ao carregar dados locais',
+    'str_measurement_error': 'Erro ao processar medição',
   };
 }

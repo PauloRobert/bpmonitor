@@ -1,7 +1,9 @@
+// presentation/features/auth/auth_screen.dart (corrigido)
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:bp_monitor/core/constants/app_constants.dart';
 import 'package:bp_monitor/core/di/injection_container.dart';
+import 'package:bp_monitor/core/localization/app_strings.dart';
 import 'package:bp_monitor/presentation/features/auth/bloc/auth_bloc.dart';
 import 'package:bp_monitor/presentation/features/auth/bloc/auth_event.dart';
 import 'package:bp_monitor/presentation/features/auth/bloc/auth_state.dart';
@@ -11,11 +13,14 @@ class AuthScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = sl<AppStrings>();
+
     return BlocProvider(
       create: (_) => sl<AuthBloc>()..add(CheckAuthStatusEvent()),
       child: Scaffold(
         backgroundColor: AppConstants.backgroundColor,
         body: BlocConsumer<AuthBloc, AuthState>(
+          // Adicionar o listener
           listener: (context, state) {
             if (state is Authenticated) {
               Navigator.of(context).pushReplacementNamed(AppConstants.homeRoute);
@@ -43,9 +48,9 @@ class AuthScreen extends StatelessWidget {
                       color: AppConstants.primaryColor,
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'BP Monitor',
-                      style: TextStyle(
+                    Text(
+                      strings.appName,
+                      style: const TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
                         color: AppConstants.textPrimary,
@@ -53,16 +58,16 @@ class AuthScreen extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Monitore sua pressão arterial de forma simples e eficiente',
-                      style: TextStyle(
+                    Text(
+                      strings.appDescription,
+                      style: const TextStyle(
                         fontSize: 16,
                         color: AppConstants.textSecondary,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 48),
-                    _buildGoogleSignInButton(context),
+                    _buildGoogleSignInButton(context, strings),
                   ],
                 ),
               ),
@@ -73,7 +78,7 @@ class AuthScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildGoogleSignInButton(BuildContext context) {
+  Widget _buildGoogleSignInButton(BuildContext context, AppStrings strings) {
     return ElevatedButton(
       onPressed: () => context.read<AuthBloc>().add(SignInWithGoogleEvent()),
       style: ElevatedButton.styleFrom(
@@ -94,9 +99,9 @@ class AuthScreen extends StatelessWidget {
             height: 24,
           ),
           const SizedBox(width: 12),
-          const Text(
-            'Entrar com Google',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          Text(
+            strings.loginWithGoogle,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
           ),
         ],
       ),

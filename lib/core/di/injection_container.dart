@@ -55,6 +55,9 @@ Future<void> init() async {
   final remoteConfig = await RemoteConfigService.getInstance(logger);
   sl.registerSingleton<RemoteConfigService>(remoteConfig);
 
+  //Strings de textos
+  sl.registerLazySingleton(() => AppStrings(sl()));
+
   // Core - Analytics
   final analyticsService = AnalyticsService(
     analytics: sl(),
@@ -88,6 +91,8 @@ Future<void> init() async {
       localDataSource: sl(),
       networkInfo: sl(),
       logger: sl(),
+      strings: sl(),
+      remoteConfig: sl(),
     ),
   );
 
@@ -104,6 +109,7 @@ void _registerRepositories() {
       googleSignIn: sl(),
       firestore: sl(),
       logger: sl(),
+      strings: sl(),
     ),
   );
 
@@ -114,13 +120,16 @@ void _registerRepositories() {
       networkInfo: sl(),
       logger: sl(),
       auth: sl(),
+      strings: sl(),
     ),
   );
 }
 
 void _registerUseCases() {
-  sl.registerLazySingleton(() => GetPressureCategory(remoteConfig: sl()));
-}
+  sl.registerLazySingleton(() => GetPressureCategory(
+    remoteConfig: sl(),
+    strings: sl(),
+  ));
 
 void _registerBlocs() {
   sl.registerFactory(() => AuthBloc(authRepository: sl()));

@@ -6,6 +6,7 @@ import 'package:bp_monitor/core/error/exceptions.dart';
 import 'package:bp_monitor/core/error/failures.dart';
 import 'package:bp_monitor/core/network/network_info.dart';
 import 'package:bp_monitor/core/utils/logger.dart';
+import 'package:bp_monitor/core/localization/app_strings.dart';
 import 'package:bp_monitor/data/datasources/local/measurement_local_datasource.dart';
 import 'package:bp_monitor/data/models/measurement_model.dart';
 import 'package:bp_monitor/domain/entities/measurement_entity.dart';
@@ -18,6 +19,7 @@ class MeasurementRepositoryImpl implements MeasurementRepository {
   final NetworkInfo networkInfo;
   final AppLogger logger;
   final FirebaseAuth _auth;
+  final AppStrings _strings;
 
   MeasurementRepositoryImpl({
     required this.firestore,
@@ -25,14 +27,16 @@ class MeasurementRepositoryImpl implements MeasurementRepository {
     required this.networkInfo,
     required this.logger,
     required FirebaseAuth auth,
-  }) : _auth = auth;
+    required AppStrings strings,
+  }) : _auth = auth,
+        _strings = strings;
 
   @override
   Future<Either<Failure, List<MeasurementEntity>>> getMeasurements() async {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        return const Left(AuthFailure('Usuário não autenticado'));
+        return Left(AuthFailure(_strings.get('unauthenticated')));
       }
 
       final isConnected = await networkInfo.isConnected;
@@ -76,10 +80,10 @@ class MeasurementRepositoryImpl implements MeasurementRepository {
       }
     } on CacheException catch (e) {
       logger.e('Erro de cache ao buscar medições', e);
-      return Left(CacheFailure('Erro ao carregar medições locais'));
+      return Left(CacheFailure(_strings.get('cache_error')));
     } catch (e) {
       logger.e('Erro desconhecido ao buscar medições', e);
-      return Left(ServerFailure('Erro ao carregar medições'));
+      return Left(ServerFailure(_strings.get('server_error')));
     }
   }
 
@@ -90,7 +94,7 @@ class MeasurementRepositoryImpl implements MeasurementRepository {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        return const Left(AuthFailure('Usuário não autenticado'));
+        return Left(AuthFailure(_strings.get('unauthenticated')));
       }
 
       final isConnected = await networkInfo.isConnected;
@@ -125,10 +129,10 @@ class MeasurementRepositoryImpl implements MeasurementRepository {
       }
     } on CacheException catch (e) {
       logger.e('Erro de cache ao buscar medições recentes', e);
-      return Left(CacheFailure('Erro ao carregar medições recentes'));
+      return Left(CacheFailure(_strings.get('cache_error')));
     } catch (e) {
       logger.e('Erro desconhecido ao buscar medições recentes', e);
-      return Left(ServerFailure('Erro ao carregar medições recentes'));
+      return Left(ServerFailure(_strings.get('server_error')));
     }
   }
 
@@ -139,7 +143,7 @@ class MeasurementRepositoryImpl implements MeasurementRepository {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        return const Left(AuthFailure('Usuário não autenticado'));
+        return Left(AuthFailure(_strings.get('unauthenticated')));
       }
 
       // Criar ID se necessário
@@ -171,16 +175,16 @@ class MeasurementRepositoryImpl implements MeasurementRepository {
       } else {
         // Marcar para sincronização futura
         await localDataSource.markForSync(id);
-        logger.i('Medição salva offline e marcada para sincronização');
+        logger.i(_strings.get('offline_mode'));
       }
 
       return Right(measurementModel.toEntity());
     } on CacheException catch (e) {
       logger.e('Erro de cache ao salvar medição', e);
-      return Left(CacheFailure('Erro ao salvar medição localmente'));
+      return Left(CacheFailure(_strings.get('cache_error')));
     } catch (e) {
       logger.e('Erro desconhecido ao salvar medição', e);
-      return Left(ServerFailure('Erro ao salvar medição'));
+      return Left(ServerFailure(_strings.get('measurement_error')));
     }
   }
 
@@ -191,11 +195,11 @@ class MeasurementRepositoryImpl implements MeasurementRepository {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        return const Left(AuthFailure('Usuário não autenticado'));
+        return Left(AuthFailure(_strings.get('unauthenticated')));
       }
 
       if (measurement.id.isEmpty) {
-        return const Left(ServerFailure('ID da medição não fornecido'));
+        return Left(ServerFailure(_strings.get('measurement_error', defaultValue: 'ID da medição não fornecido')));
       }
 
       // Converter para model
@@ -222,16 +226,16 @@ class MeasurementRepositoryImpl implements MeasurementRepository {
       } else {
         // Marcar para sincronização futura
         await localDataSource.markForSync(measurement.id);
-        logger.i('Medição atualizada offline e marcada para sincronização');
+        logger.i(_strings.get('offline_mode'));
       }
 
       return Right(measurementModel.toEntity());
     } on CacheException catch (e) {
       logger.e('Erro de cache ao atualizar medição', e);
-      return Left(CacheFailure('Erro ao atualizar medição localmente'));
+      return Left(CacheFailure(_strings.get('cache_error')));
     } catch (e) {
       logger.e('Erro desconhecido ao atualizar medição', e);
-      return Left(ServerFailure('Erro ao atualizar medição'));
+      return Left(ServerFailure(_strings.get('measurement_error')));
     }
   }
 
@@ -240,11 +244,11 @@ class MeasurementRepositoryImpl implements MeasurementRepository {
     try {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
-        return const Left(AuthFailure('Usuário não autenticado'));
+        return Left(AuthFailure(_strings.get('unauthenticated')));
       }
 
       if (id.isEmpty) {
-        return const Left(ServerFailure('ID da medição não fornecido'));
+        return Left(ServerFailure(_strings.get('measurement_error', defaultValue: 'ID da medição não fornecido')));
       }
 
       // Excluir localmente primeiro
@@ -265,16 +269,16 @@ class MeasurementRepositoryImpl implements MeasurementRepository {
       } else {
         // Marcar para exclusão na próxima sincronização
         await localDataSource.markForDeletion(id);
-        logger.i('Medição marcada para exclusão na próxima sincronização');
+        logger.i(_strings.get('offline_mode'));
       }
 
       return const Right(true);
     } on CacheException catch (e) {
       logger.e('Erro de cache ao excluir medição', e);
-      return Left(CacheFailure('Erro ao excluir medição localmente'));
+      return Left(CacheFailure(_strings.get('cache_error')));
     } catch (e) {
       logger.e('Erro desconhecido ao excluir medição', e);
-      return Left(ServerFailure('Erro ao excluir medição'));
+      return Left(ServerFailure(_strings.get('measurement_error')));
     }
   }
 }
