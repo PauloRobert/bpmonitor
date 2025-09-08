@@ -19,12 +19,10 @@ class AddMeasurementScreen extends StatefulWidget {
 class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
   final _formKey = GlobalKey<FormState>();
   final db = DatabaseService.instance;
-
   final TextEditingController _systolicController = TextEditingController();
   final TextEditingController _diastolicController = TextEditingController();
   final TextEditingController _heartRateController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
-
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
   bool _isLoading = false;
@@ -66,7 +64,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now(),
     );
-
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
@@ -79,7 +76,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
       context: context,
       initialTime: _selectedTime,
     );
-
     if (picked != null && picked != _selectedTime) {
       setState(() {
         _selectedTime = picked;
@@ -134,12 +130,10 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     final systolic = int.tryParse(_systolicController.text);
     final diastolic = int.tryParse(_diastolicController.text);
     final heartRate = int.tryParse(_heartRateController.text);
-
     if (systolic != null && diastolic != null) {
       if (systolic <= diastolic) {
         warnings.add('ERRO: A pressão sistólica deve ser maior que a diastólica');
       }
-
       final tempMeasurement = MeasurementModel(
         systolic: systolic,
         diastolic: diastolic,
@@ -155,7 +149,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
   AlertLevel _getAlertLevel() {
     final systolic = int.tryParse(_systolicController.text);
     final diastolic = int.tryParse(_diastolicController.text);
-
     if (systolic != null && diastolic != null) {
       if (systolic <= diastolic) {
         return AlertLevel.critical;
@@ -190,7 +183,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-
     final alertLevel = _getAlertLevel();
     if (alertLevel == AlertLevel.critical) {
       final shouldContinue = await _showCriticalAlert();
@@ -198,11 +190,9 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         return;
       }
     }
-
     setState(() {
       _isLoading = true;
     });
-
     try {
       final measuredAt = DateTime(
         _selectedDate.year,
@@ -211,7 +201,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         _selectedTime.hour,
         _selectedTime.minute,
       );
-
       final measurement = MeasurementModel(
         id: widget.measurementToEdit?.id,
         systolic: int.parse(_systolicController.text),
@@ -221,7 +210,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         createdAt: widget.measurementToEdit?.createdAt ?? DateTime.now(),
         notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       );
-
       AppConstants.logUserAction(
         widget.measurementToEdit != null ? 'update_measurement' : 'add_measurement',
         {
@@ -231,7 +219,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
           'category': measurement.category,
         },
       );
-
       if (widget.measurementToEdit != null) {
         await db.updateMeasurement(measurement);
         AppConstants.logInfo('Medição atualizada: ${measurement.systolic}/${measurement.diastolic}');
@@ -239,7 +226,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         await db.insertMeasurement(measurement);
         AppConstants.logInfo('Nova medição salva: ${measurement.systolic}/${measurement.diastolic}');
       }
-
       if (mounted) {
         final isEditing = widget.measurementToEdit != null;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -248,9 +234,7 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Text(isEditing
-                    ? AppConstants.measurementUpdatedSuccess
-                    : AppConstants.measurementSavedSuccess),
+                Text(isEditing ? AppConstants.measurementUpdatedSuccess : AppConstants.measurementSavedSuccess),
               ],
             ),
             backgroundColor: AppConstants.successColor,
@@ -294,10 +278,10 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
           children: [
             Icon(Icons.warning, color: AppConstants.criticalColor),
             const SizedBox(width: 8),
-            const Expanded( // Garante que o texto se adapte à largura
+            const Expanded(
               child: Text(
                 'Atenção Médica Urgente',
-                softWrap: true, // Habilita quebra de linha
+                softWrap: true,
               ),
             ),
           ],
@@ -412,136 +396,183 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildMeasurementFieldsCard(),
-              const SizedBox(height: 24),
-              _buildDateTimeSection(),
-              const SizedBox(height: 24),
-              _buildNotesField(),
-              if (warnings.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                _buildWarningsCard(warnings, alertLevel),
-              ],
-              const SizedBox(height: 32),
-              _buildSaveButton(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMeasurementFieldsCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
+      body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Valores da Medição',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.textPrimary,
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Valores da Medição',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppConstants.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildPressureInput(
+                                      label: 'Sistólica (mmHg)',
+                                      hintText: 'Ex: 120',
+                                      icon: Icons.arrow_upward,
+                                      controller: _systolicController,
+                                      validator: _validateSystolic,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: _buildPressureInput(
+                                      label: 'Diastólica (mmHg)',
+                                      hintText: 'Ex: 80',
+                                      icon: Icons.arrow_downward,
+                                      controller: _diastolicController,
+                                      validator: _validateDiastolic,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              _buildHeartRateInput(),
+                              if (_systolicController.text.isNotEmpty && _diastolicController.text.isNotEmpty)
+                                _buildClassificationPreview(),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Data e Hora da Medição',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppConstants.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildDateTimePicker(
+                                      icon: Icons.calendar_today,
+                                      text: '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}',
+                                      onTap: _selectDate,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: _buildDateTimePicker(
+                                      icon: Icons.access_time,
+                                      text: '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
+                                      onTap: _selectTime,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: TextFormField(
+                            controller: _notesController,
+                            decoration: const InputDecoration(
+                              labelText: 'Observações (opcional)',
+                              hintText: 'Ex: Após exercício, estresse, medicação...',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.note),
+                            ),
+                            maxLines: 3,
+                            maxLength: 200,
+                          ),
+                        ),
+                      ),
+                      if (warnings.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildWarningsCard(warnings, alertLevel),
+                      ],
+                    ],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 20),
-            _buildPressureInputs(),
-            const SizedBox(height: 20),
-            _buildHeartRateInput(),
-            if (_systolicController.text.isNotEmpty && _diastolicController.text.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _buildClassificationPreview(),
-            ],
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _buildSaveButton(),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildPressureInputs() {
-    return Row(
+  Widget _buildPressureInput({
+    required String label,
+    required String hintText,
+    required IconData icon,
+    required TextEditingController controller,
+    required String? Function(String?) validator,
+  }) {
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Sistólica (mmHg)',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppConstants.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 80,
-                child: TextFormField(
-                  controller: _systolicController,
-                  decoration: InputDecoration(
-                    hintText: 'Ex: 120',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.arrow_upward),
-                    errorMaxLines: 2,
-                  ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(3),
-                  ],
-                  validator: _validateSystolic,
-                ),
-              ),
-            ],
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppConstants.textPrimary,
           ),
         ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Diastólica (mmHg)',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppConstants.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 80,
-                child: TextFormField(
-                  controller: _diastolicController,
-                  decoration: InputDecoration(
-                    hintText: 'Ex: 80',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.arrow_downward),
-                    errorMaxLines: 2,
-                  ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(3),
-                  ],
-                  validator: _validateDiastolic,
-                ),
-              ),
-            ],
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: hintText,
+            border: const OutlineInputBorder(),
+            prefixIcon: Icon(icon),
+            errorMaxLines: 2,
           ),
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(3),
+          ],
+          validator: validator,
         ),
       ],
     );
@@ -560,23 +591,20 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 80,
-          child: TextFormField(
-            controller: _heartRateController,
-            decoration: InputDecoration(
-              hintText: 'Ex: 72',
-              border: const OutlineInputBorder(),
-              prefixIcon: const Icon(Icons.favorite),
-              errorMaxLines: 2,
-            ),
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(3),
-            ],
-            validator: _validateHeartRate,
+        TextFormField(
+          controller: _heartRateController,
+          decoration: InputDecoration(
+            hintText: 'Ex: 72',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.favorite),
+            errorMaxLines: 2,
           ),
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(3),
+          ],
+          validator: _validateHeartRate,
         ),
       ],
     );
@@ -586,11 +614,9 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     final systolic = int.tryParse(_systolicController.text);
     final diastolic = int.tryParse(_diastolicController.text);
     final heartRate = int.tryParse(_heartRateController.text);
-
     if (systolic == null || diastolic == null) {
       return const SizedBox.shrink();
     }
-
     final tempMeasurement = MeasurementModel(
       systolic: systolic,
       diastolic: diastolic,
@@ -598,107 +624,32 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
       measuredAt: DateTime.now(),
       createdAt: DateTime.now(),
     );
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: tempMeasurement.categoryColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: tempMeasurement.categoryColor.withOpacity(0.3),
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: tempMeasurement.categoryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: tempMeasurement.categoryColor.withOpacity(0.3),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.analytics,
-            color: tempMeasurement.categoryColor,
-            size: 16,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Classificação: ${tempMeasurement.categoryName}',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: tempMeasurement.categoryColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDateTimeSection() {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            const Text(
-              'Data e Hora da Medição',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.textPrimary,
-              ),
+            Icon(
+              Icons.analytics,
+              color: tempMeasurement.categoryColor,
+              size: 16,
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: _selectDate,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.calendar_today, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: InkWell(
-                    onTap: _selectTime,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.access_time, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            const SizedBox(width: 8),
+            Text(
+              'Classificação: ${tempMeasurement.categoryName}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: tempMeasurement.categoryColor,
+              ),
             ),
           ],
         ),
@@ -706,24 +657,29 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     );
   }
 
-  Widget _buildNotesField() {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: TextFormField(
-          controller: _notesController,
-          decoration: const InputDecoration(
-            labelText: 'Observações (opcional)',
-            hintText: 'Ex: Após exercício, estresse, medicação...',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.note),
-          ),
-          maxLines: 3,
-          maxLength: 200,
+  Widget _buildDateTimePicker({
+    required IconData icon,
+    required String text,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              text,
+              style: const TextStyle(fontSize: 16),
+            ),
+          ],
         ),
       ),
     );
@@ -734,7 +690,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     Color borderColor;
     Color textColor;
     IconData icon;
-
     switch (level) {
       case AlertLevel.critical:
         cardColor = AppConstants.criticalColor.withOpacity(0.1);
@@ -766,7 +721,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         textColor = Colors.blue.shade700;
         icon = Icons.info_outline;
     }
-
     return Card(
       elevation: level == AlertLevel.critical ? 3 : 1,
       color: cardColor,
@@ -794,17 +748,19 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            ...warnings.map((warning) => Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '• $warning',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: textColor,
-                  fontWeight: level == AlertLevel.critical ? FontWeight.w500 : FontWeight.normal,
+            ...warnings.map(
+                  (warning) => Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '• $warning',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: textColor,
+                    fontWeight: level == AlertLevel.critical ? FontWeight.w500 : FontWeight.normal,
+                  ),
                 ),
               ),
-            )),
+            ),
             if (level == AlertLevel.critical) ...[
               const SizedBox(height: 12),
               SizedBox(
@@ -840,14 +796,12 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
 
     return SizedBox(
       width: double.infinity,
+      height: 50,
       child: ElevatedButton(
         onPressed: _isLoading ? null : _saveMeasurement,
         style: ElevatedButton.styleFrom(
-          backgroundColor: alertLevel == AlertLevel.critical
-              ? AppConstants.criticalColor
-              : AppConstants.primaryColor,
+          backgroundColor: alertLevel == AlertLevel.critical ? AppConstants.criticalColor : AppConstants.primaryColor,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppConstants.borderRadius),
           ),
@@ -864,10 +818,8 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
             : Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (alertLevel == AlertLevel.critical)
-              const Icon(Icons.warning, size: 18),
-            if (alertLevel == AlertLevel.critical)
-              const SizedBox(width: 8),
+            if (alertLevel == AlertLevel.critical) const Icon(Icons.warning, size: 18),
+            if (alertLevel == AlertLevel.critical) const SizedBox(width: 8),
             Text(
               isEditing ? 'Atualizar Medição' : 'Salvar Medição',
               style: const TextStyle(
