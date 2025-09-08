@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/database/database_service.dart';
 import '../models/user_model.dart';
-import '../../core/database/database_helper.dart';
 import '../../core/constants/app_constants.dart';
 
 final userProvider = StateNotifierProvider<UserNotifier, AsyncValue<UserModel?>>((ref) {
@@ -12,12 +12,12 @@ class UserNotifier extends StateNotifier<AsyncValue<UserModel?>> {
     _loadUser();
   }
 
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final db = DatabaseService.instance;
 
   Future<void> _loadUser() async {
     try {
       AppConstants.logInfo('Carregando dados do usuário via provider');
-      final user = await _dbHelper.getUser();
+      final user = await db.getUser();
       state = AsyncValue.data(user);
       AppConstants.logInfo('Usuário carregado no provider: ${user?.name ?? "Nenhum usuário"}');
     } catch (e, stackTrace) {
@@ -32,10 +32,10 @@ class UserNotifier extends StateNotifier<AsyncValue<UserModel?>> {
 
       if (state.value != null) {
         final updatedUser = user.copyWith(id: state.value!.id);
-        await _dbHelper.updateUser(updatedUser);
+        await db.updateUser(updatedUser);
         state = AsyncValue.data(updatedUser);
       } else {
-        final id = await _dbHelper.insertUser(user);
+        final id = await db.insertUser(user);
         final savedUser = user.copyWith(id: id);
         state = AsyncValue.data(savedUser);
       }
@@ -50,7 +50,7 @@ class UserNotifier extends StateNotifier<AsyncValue<UserModel?>> {
   Future<void> updateUser(UserModel user) async {
     try {
       AppConstants.logInfo('Atualizando usuário via provider: ${user.name}');
-      await _dbHelper.updateUser(user);
+      await db.updateUser(user);
       state = AsyncValue.data(user);
       AppConstants.logInfo('Usuário atualizado com sucesso via provider');
     } catch (e, stackTrace) {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/database/database_helper.dart';
+import '../../core/database/database_service.dart';
 import '../../shared/models/measurement_model.dart';
 
 class AddMeasurementScreen extends StatefulWidget {
@@ -18,13 +18,11 @@ class AddMeasurementScreen extends StatefulWidget {
 
 class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
   final _formKey = GlobalKey<FormState>();
-  final DatabaseHelper _dbHelper = DatabaseHelper();
-
+  final db = DatabaseService.instance;
   final TextEditingController _systolicController = TextEditingController();
   final TextEditingController _diastolicController = TextEditingController();
   final TextEditingController _heartRateController = TextEditingController();
   final TextEditingController _notesController = TextEditingController();
-
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
   bool _isLoading = false;
@@ -33,6 +31,9 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
   void initState() {
     super.initState();
     _initializeFields();
+    _systolicController.addListener(() => setState(() {}));
+    _diastolicController.addListener(() => setState(() {}));
+    _heartRateController.addListener(() => setState(() {}));
   }
 
   void _initializeFields() {
@@ -63,7 +64,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now(),
     );
-
     if (picked != null && picked != _selectedDate) {
       setState(() {
         _selectedDate = picked;
@@ -76,7 +76,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
       context: context,
       initialTime: _selectedTime,
     );
-
     if (picked != null && picked != _selectedTime) {
       setState(() {
         _selectedTime = picked;
@@ -88,16 +87,13 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     if (value == null || value.isEmpty) {
       return 'Campo obrigatório';
     }
-
     final intValue = int.tryParse(value);
     if (intValue == null) {
       return 'Valor inválido';
     }
-
     if (intValue < AppConstants.minSystolic || intValue > AppConstants.maxSystolic) {
       return 'Valor deve estar entre ${AppConstants.minSystolic} e ${AppConstants.maxSystolic}';
     }
-
     return null;
   }
 
@@ -105,16 +101,13 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     if (value == null || value.isEmpty) {
       return 'Campo obrigatório';
     }
-
     final intValue = int.tryParse(value);
     if (intValue == null) {
       return 'Valor inválido';
     }
-
     if (intValue < AppConstants.minDiastolic || intValue > AppConstants.maxDiastolic) {
       return 'Valor deve estar entre ${AppConstants.minDiastolic} e ${AppConstants.maxDiastolic}';
     }
-
     return null;
   }
 
@@ -122,34 +115,25 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     if (value == null || value.isEmpty) {
       return 'Campo obrigatório';
     }
-
     final intValue = int.tryParse(value);
     if (intValue == null) {
       return 'Valor inválido';
     }
-
     if (intValue < AppConstants.minHeartRate || intValue > AppConstants.maxHeartRate) {
       return 'Valor deve estar entre ${AppConstants.minHeartRate} e ${AppConstants.maxHeartRate}';
     }
-
     return null;
   }
 
-  // ✅ FIX: Sistema de alertas médicos melhorado
   List<String> _getWarnings() {
     final warnings = <String>[];
-
     final systolic = int.tryParse(_systolicController.text);
     final diastolic = int.tryParse(_diastolicController.text);
     final heartRate = int.tryParse(_heartRateController.text);
-
     if (systolic != null && diastolic != null) {
-      // Validação crítica
       if (systolic <= diastolic) {
         warnings.add('ERRO: A pressão sistólica deve ser maior que a diastólica');
       }
-
-      // Criar medição temporária para usar a nova classificação
       final tempMeasurement = MeasurementModel(
         systolic: systolic,
         diastolic: diastolic,
@@ -157,20 +141,18 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         measuredAt: DateTime.now(),
         createdAt: DateTime.now(),
       );
-
-      // Adicionar alertas médicos específicos
       warnings.addAll(tempMeasurement.medicalAlerts);
     }
-
     return warnings;
   }
 
-  // ✅ FIX: Obter nível de criticidade dos alertas
   AlertLevel _getAlertLevel() {
     final systolic = int.tryParse(_systolicController.text);
     final diastolic = int.tryParse(_diastolicController.text);
-
     if (systolic != null && diastolic != null) {
+      if (systolic <= diastolic) {
+        return AlertLevel.critical;
+      }
       final tempMeasurement = MeasurementModel(
         systolic: systolic,
         diastolic: diastolic,
@@ -178,11 +160,9 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         measuredAt: DateTime.now(),
         createdAt: DateTime.now(),
       );
-
       if (tempMeasurement.needsUrgentAttention) {
         return AlertLevel.critical;
       }
-
       switch (tempMeasurement.category) {
         case 'crisis':
           return AlertLevel.critical;
@@ -196,7 +176,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
           return AlertLevel.none;
       }
     }
-
     return AlertLevel.none;
   }
 
@@ -204,8 +183,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-
-    // ✅ FIX: Verificar alertas críticos antes de salvar
     final alertLevel = _getAlertLevel();
     if (alertLevel == AlertLevel.critical) {
       final shouldContinue = await _showCriticalAlert();
@@ -213,11 +190,9 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         return;
       }
     }
-
     setState(() {
       _isLoading = true;
     });
-
     try {
       final measuredAt = DateTime(
         _selectedDate.year,
@@ -226,7 +201,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         _selectedTime.hour,
         _selectedTime.minute,
       );
-
       final measurement = MeasurementModel(
         id: widget.measurementToEdit?.id,
         systolic: int.parse(_systolicController.text),
@@ -236,8 +210,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         createdAt: widget.measurementToEdit?.createdAt ?? DateTime.now(),
         notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       );
-
-      // ✅ FIX: Log da ação do usuário
       AppConstants.logUserAction(
         widget.measurementToEdit != null ? 'update_measurement' : 'add_measurement',
         {
@@ -247,15 +219,13 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
           'category': measurement.category,
         },
       );
-
       if (widget.measurementToEdit != null) {
-        await _dbHelper.updateMeasurement(measurement);
+        await db.updateMeasurement(measurement);
         AppConstants.logInfo('Medição atualizada: ${measurement.systolic}/${measurement.diastolic}');
       } else {
-        await _dbHelper.insertMeasurement(measurement);
+        await db.insertMeasurement(measurement);
         AppConstants.logInfo('Nova medição salva: ${measurement.systolic}/${measurement.diastolic}');
       }
-
       if (mounted) {
         final isEditing = widget.measurementToEdit != null;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -264,21 +234,17 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Text(isEditing
-                    ? AppConstants.measurementUpdatedSuccess
-                    : AppConstants.measurementSavedSuccess),
+                Text(isEditing ? AppConstants.measurementUpdatedSuccess : AppConstants.measurementSavedSuccess),
               ],
             ),
             backgroundColor: AppConstants.successColor,
             duration: const Duration(seconds: 2),
           ),
         );
-
         Navigator.of(context).pop(true);
       }
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao salvar medição', e, stackTrace);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -303,7 +269,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     }
   }
 
-  // ✅ FIX: Diálogo de alerta crítico
   Future<bool?> _showCriticalAlert() async {
     return showDialog<bool>(
       context: context,
@@ -313,7 +278,12 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
           children: [
             Icon(Icons.warning, color: AppConstants.criticalColor),
             const SizedBox(width: 8),
-            const Text('Atenção Médica Urgente'),
+            const Expanded(
+              child: Text(
+                'Atenção Médica Urgente',
+                softWrap: true,
+              ),
+            ),
           ],
         ),
         content: const Column(
@@ -353,6 +323,54 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     );
   }
 
+  Future<void> _showTipsDialog() async {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Dicas para uma medição precisa'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTipItem('Descanse 5 minutos antes da medição'),
+            _buildTipItem('Mantenha os pés no chão e costas apoiadas'),
+            _buildTipItem('Evite falar durante a medição'),
+            _buildTipItem('Não consuma cafeína 30min antes'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Ok'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTipItem(String tip) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.check_circle,
+            size: 16,
+            color: AppConstants.successColor,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              tip,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.measurementToEdit != null;
@@ -371,209 +389,234 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
           fontSize: 18,
           fontWeight: FontWeight.w600,
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            onPressed: _showTipsDialog,
+          ),
+        ],
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildInstructionCard(),
-              const SizedBox(height: 24),
-              _buildMeasurementFields(),
-              const SizedBox(height: 24),
-              _buildDateTimeSection(),
-              const SizedBox(height: 24),
-              _buildNotesField(),
-              if (warnings.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                _buildWarningsCard(warnings, alertLevel),
-              ],
-              const SizedBox(height: 32),
-              _buildSaveButton(),
-            ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Valores da Medição',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppConstants.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildPressureInput(
+                                      label: 'Sistólica (mmHg)',
+                                      hintText: 'Ex: 120',
+                                      icon: Icons.arrow_upward,
+                                      controller: _systolicController,
+                                      validator: _validateSystolic,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: _buildPressureInput(
+                                      label: 'Diastólica (mmHg)',
+                                      hintText: 'Ex: 80',
+                                      icon: Icons.arrow_downward,
+                                      controller: _diastolicController,
+                                      validator: _validateDiastolic,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              _buildHeartRateInput(),
+                              if (_systolicController.text.isNotEmpty && _diastolicController.text.isNotEmpty)
+                                _buildClassificationPreview(),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Data e Hora da Medição',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppConstants.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildDateTimePicker(
+                                      icon: Icons.calendar_today,
+                                      text: '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}',
+                                      onTap: _selectDate,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: _buildDateTimePicker(
+                                      icon: Icons.access_time,
+                                      text: '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
+                                      onTap: _selectTime,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: TextFormField(
+                            controller: _notesController,
+                            decoration: const InputDecoration(
+                              labelText: 'Observações (opcional)',
+                              hintText: 'Ex: Após exercício, estresse, medicação...',
+                              border: OutlineInputBorder(),
+                              prefixIcon: Icon(Icons.note),
+                            ),
+                            maxLines: 3,
+                            maxLength: 200,
+                          ),
+                        ),
+                      ),
+                      if (warnings.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        _buildWarningsCard(warnings, alertLevel),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _buildSaveButton(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPressureInput({
+    required String label,
+    required String hintText,
+    required IconData icon,
+    required TextEditingController controller,
+    required String? Function(String?) validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppConstants.textPrimary,
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildInstructionCard() {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.info_outline,
-                  color: AppConstants.primaryColor,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Dicas para uma medição precisa:',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppConstants.textPrimary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildTipsList(),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          decoration: InputDecoration(
+            hintText: hintText,
+            border: const OutlineInputBorder(),
+            prefixIcon: Icon(icon),
+            errorMaxLines: 2,
+          ),
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(3),
           ],
+          validator: validator,
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildTipsList() {
-    final tips = [
-      'Descanse 5 minutos antes da medição',
-      'Mantenha os pés no chão e costas apoiadas',
-      'Evite falar durante a medição',
-      'Não consuma cafeína 30min antes',
-    ];
-
+  Widget _buildHeartRateInput() {
     return Column(
-      children: tips.map((tip) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              Icons.check_circle,
-              size: 16,
-              color: AppConstants.successColor,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                tip,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppConstants.textSecondary,
-                ),
-              ),
-            ),
-          ],
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Frequência Cardíaca (bpm)',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppConstants.textPrimary,
+          ),
         ),
-      )).toList(),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _heartRateController,
+          decoration: InputDecoration(
+            hintText: 'Ex: 72',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.favorite),
+            errorMaxLines: 2,
+          ),
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(3),
+          ],
+          validator: _validateHeartRate,
+        ),
+      ],
     );
   }
 
-  Widget _buildMeasurementFields() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Valores da Medição',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _systolicController,
-                    decoration: const InputDecoration(
-                      labelText: 'Sistólica *',
-                      suffixText: 'mmHg',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.arrow_upward),
-                      helperText: 'Pressão máxima',
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(3),
-                    ],
-                    validator: _validateSystolic,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    controller: _diastolicController,
-                    decoration: const InputDecoration(
-                      labelText: 'Diastólica *',
-                      suffixText: 'mmHg',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.arrow_downward),
-                      helperText: 'Pressão mínima',
-                    ),
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(3),
-                    ],
-                    validator: _validateDiastolic,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _heartRateController,
-              decoration: const InputDecoration(
-                labelText: 'Frequência Cardíaca *',
-                suffixText: 'bpm',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.favorite),
-                helperText: 'Batimentos por minuto',
-              ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(3),
-              ],
-              validator: _validateHeartRate,
-              onChanged: (_) => setState(() {}),
-            ),
-            // ✅ FIX: Preview da classificação em tempo real
-            if (_systolicController.text.isNotEmpty && _diastolicController.text.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              _buildClassificationPreview(),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ✅ FIX: Preview da classificação em tempo real
   Widget _buildClassificationPreview() {
     final systolic = int.tryParse(_systolicController.text);
     final diastolic = int.tryParse(_diastolicController.text);
     final heartRate = int.tryParse(_heartRateController.text);
-
     if (systolic == null || diastolic == null) {
       return const SizedBox.shrink();
     }
-
     final tempMeasurement = MeasurementModel(
       systolic: systolic,
       diastolic: diastolic,
@@ -581,107 +624,32 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
       measuredAt: DateTime.now(),
       createdAt: DateTime.now(),
     );
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: tempMeasurement.categoryColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: tempMeasurement.categoryColor.withOpacity(0.3),
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: tempMeasurement.categoryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: tempMeasurement.categoryColor.withOpacity(0.3),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.analytics,
-            color: tempMeasurement.categoryColor,
-            size: 16,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            'Classificação: ${tempMeasurement.categoryName}',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: tempMeasurement.categoryColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDateTimeSection() {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Row(
           children: [
-            const Text(
-              'Data e Hora da Medição',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.textPrimary,
-              ),
+            Icon(
+              Icons.analytics,
+              color: tempMeasurement.categoryColor,
+              size: 16,
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: _selectDate,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.calendar_today, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${_selectedDate.day.toString().padLeft(2, '0')}/${_selectedDate.month.toString().padLeft(2, '0')}/${_selectedDate.year}',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: InkWell(
-                    onTap: _selectTime,
-                    borderRadius: BorderRadius.circular(8),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.access_time, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            const SizedBox(width: 8),
+            Text(
+              'Classificação: ${tempMeasurement.categoryName}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: tempMeasurement.categoryColor,
+              ),
             ),
           ],
         ),
@@ -689,36 +657,39 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     );
   }
 
-  Widget _buildNotesField() {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: TextFormField(
-          controller: _notesController,
-          decoration: const InputDecoration(
-            labelText: 'Observações (opcional)',
-            hintText: 'Ex: Após exercício, estresse, medicação...',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.note),
-          ),
-          maxLines: 3,
-          maxLength: 200,
+  Widget _buildDateTimePicker({
+    required IconData icon,
+    required String text,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              text,
+              style: const TextStyle(fontSize: 16),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // ✅ FIX: Card de alertas com níveis de criticidade
   Widget _buildWarningsCard(List<String> warnings, AlertLevel level) {
     Color cardColor;
     Color borderColor;
     Color textColor;
     IconData icon;
-
     switch (level) {
       case AlertLevel.critical:
         cardColor = AppConstants.criticalColor.withOpacity(0.1);
@@ -750,7 +721,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         textColor = Colors.blue.shade700;
         icon = Icons.info_outline;
     }
-
     return Card(
       elevation: level == AlertLevel.critical ? 3 : 1,
       color: cardColor,
@@ -778,25 +748,25 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            ...warnings.map((warning) => Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                '• $warning',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: textColor,
-                  fontWeight: level == AlertLevel.critical ? FontWeight.w500 : FontWeight.normal,
+            ...warnings.map(
+                  (warning) => Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '• $warning',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: textColor,
+                    fontWeight: level == AlertLevel.critical ? FontWeight.w500 : FontWeight.normal,
+                  ),
                 ),
               ),
-            )),
-            // ✅ FIX: Botão de ação para casos críticos
+            ),
             if (level == AlertLevel.critical) ...[
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    // Simular chamada de emergência (placeholder)
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Em caso de emergência, ligue 192 (SAMU) ou vá ao hospital mais próximo'),
@@ -826,14 +796,12 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
 
     return SizedBox(
       width: double.infinity,
+      height: 50,
       child: ElevatedButton(
         onPressed: _isLoading ? null : _saveMeasurement,
         style: ElevatedButton.styleFrom(
-          backgroundColor: alertLevel == AlertLevel.critical
-              ? AppConstants.criticalColor
-              : AppConstants.primaryColor,
+          backgroundColor: alertLevel == AlertLevel.critical ? AppConstants.criticalColor : AppConstants.primaryColor,
           foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppConstants.borderRadius),
           ),
@@ -850,10 +818,8 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
             : Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (alertLevel == AlertLevel.critical)
-              const Icon(Icons.warning, size: 18),
-            if (alertLevel == AlertLevel.critical)
-              const SizedBox(width: 8),
+            if (alertLevel == AlertLevel.critical) const Icon(Icons.warning, size: 18),
+            if (alertLevel == AlertLevel.critical) const SizedBox(width: 8),
             Text(
               isEditing ? 'Atualizar Medição' : 'Salvar Medição',
               style: const TextStyle(
@@ -868,7 +834,6 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
   }
 }
 
-// ✅ FIX: Enum para níveis de alerta
 enum AlertLevel {
   none,
   low,
