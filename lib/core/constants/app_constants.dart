@@ -13,6 +13,7 @@ class AppConstants {
   static const String homeRoute = '/home';
   static const String addMeasurementRoute = '/add_measurement';
   static const String editMeasurementRoute = '/edit_measurement';
+  static const String historyRoute = '/history';
   static const String statisticsRoute = '/statistics';
   static const String profileRoute = '/profile';
 

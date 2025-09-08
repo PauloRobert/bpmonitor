@@ -1,3 +1,4 @@
+// core/local/migration_service.dart (corrigido)
 import 'package:hive/hive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bp_monitor/core/utils/logger.dart';

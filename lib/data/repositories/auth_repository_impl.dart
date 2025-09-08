@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:dartz/dartz.dart';
 import 'package:bp_monitor/core/error/failures.dart';
-import 'package:bp_monitor/core/error/exceptions.dart';
 import 'package:bp_monitor/domain/entities/user_entity.dart';
 import 'package:bp_monitor/domain/repositories/auth_repository.dart';
 import 'package:bp_monitor/data/models/user_model.dart';
@@ -24,7 +23,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required FirebaseFirestore firestore,
     required AppLogger logger,
     required AppStrings strings,
-  }) : _firebaseAuth = firebaseAuth,
+  })  : _firebaseAuth = firebaseAuth,
         _googleSignIn = googleSignIn,
         _firestore = firestore,
         _logger = logger,
@@ -39,16 +38,25 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Either<Failure, UserEntity>> signInWithGoogle() async {
     try {
       // Iniciar fluxo de login
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      final googleUser = await _googleSignIn.attemptLightweightAuthentication();
+
       if (googleUser == null) {
         return Left(AuthFailure(_strings.loginCanceled));
       }
 
-      // Obter credenciais de autenticação
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      // Obter tokens de acesso via authorizationForScopes
+      final authToken = await _googleSignIn.authorizationForScopes(
+        scopes: ['email', 'profile'],
+      );
+
+      if (authToken == null) {
+        return Left(AuthFailure(_strings.loginError));
+      }
+
+      // Criar credencial do Firebase
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+        accessToken: authToken.accessToken,
+        idToken: authToken.idToken,
       );
 
       // Login no Firebase
@@ -68,7 +76,6 @@ class AuthRepositoryImpl implements AuthRepository {
           'lastLogin': DateTime.now().toIso8601String(),
         });
 
-        // Converter para UserEntity
         final userData = userDoc.data() as Map<String, dynamic>;
         return Right(UserModel.fromFirestore(userData, user.uid).toEntity());
       } else {
@@ -138,7 +145,6 @@ class AuthRepositoryImpl implements AuthRepository {
         'updatedAt': DateTime.now().toIso8601String(),
       });
 
-      // Obter dados atualizados
       final updatedUserDoc = await _firestore.collection('users').doc(user.id).get();
       final updatedUserData = updatedUserDoc.data() as Map<String, dynamic>;
 

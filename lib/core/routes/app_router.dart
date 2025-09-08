@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:bp_monitor/presentation/features/splash/splash_screen.dart';
 import 'package:bp_monitor/presentation/features/auth/auth_screen.dart';
-import 'package:bp_monitor/presentation/features/onboarding/onboarding_screen.dart';
 import 'package:bp_monitor/presentation/features/home/home_screen.dart';
 import 'package:bp_monitor/core/constants/app_constants.dart';
 
@@ -11,14 +10,13 @@ class AppRouter {
       case AppConstants.splashRoute:
         return MaterialPageRoute(builder: (_) => const SplashScreen());
 
-      case AppConstants.onboardingRoute:
-        return MaterialPageRoute(builder: (_) => const OnboardingScreen());
-
       case AppConstants.authRoute:
         return MaterialPageRoute(builder: (_) => const AuthScreen());
 
       case AppConstants.homeRoute:
         return MaterialPageRoute(builder: (_) => const HomeScreen());
+
+    // Outras rotas serão adicionadas aqui conforme implementarmos mais telas
 
       default:
         return MaterialPageRoute(

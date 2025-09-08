@@ -54,6 +54,7 @@ dev_dependencies:
   json_serializable: ^6.7.1
   hive_generator: ^2.0.1
   mockito: ^5.4.4
+  shared_preferences: ^2.2.2
 
 flutter:
   uses-material-design: true

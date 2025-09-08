@@ -1,3 +1,4 @@
+// core/di/injection_container.dart (completo com todas as correções)
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -14,6 +15,8 @@ import 'package:bp_monitor/core/network/network_info.dart';
 import 'package:bp_monitor/core/local/hive_setup.dart';
 import 'package:bp_monitor/core/local/migration_service.dart';
 import 'package:bp_monitor/core/sync/sync_service.dart';
+import 'package:bp_monitor/core/localization/app_strings.dart';
+import 'package:bp_monitor/core/theme/app_theme.dart';
 import 'package:bp_monitor/data/datasources/local/measurement_local_datasource.dart';
 import 'package:bp_monitor/data/repositories/auth_repository_impl.dart';
 import 'package:bp_monitor/data/repositories/measurement_repository_impl.dart';
@@ -33,8 +36,15 @@ Future<void> init() async {
   sl.registerSingleton<FirebaseFirestore>(FirebaseFirestore.instance);
   sl.registerSingleton<FirebaseAnalytics>(FirebaseAnalytics.instance);
   sl.registerSingleton<FirebaseCrashlytics>(FirebaseCrashlytics.instance);
-  sl.registerSingleton<GoogleSignIn>(GoogleSignIn());
-  sl.registerSingleton<InternetConnectionChecker>(InternetConnectionChecker());
+  final googleSignIn = GoogleSignIn.instance;
+// Apenas inicializa, sem scopes
+  await googleSignIn.initialize();
+
+  sl.registerSingleton<GoogleSignIn>(googleSignIn);
+  sl.registerSingleton<InternetConnectionChecker>(InternetConnectionChecker.createInstance(
+    checkTimeout: const Duration(seconds: 5),
+    checkInterval: const Duration(seconds: 60),
+  ));
 
   // Core - Utils & Network
   final logger = AppLoggerImpl();
@@ -55,8 +65,9 @@ Future<void> init() async {
   final remoteConfig = await RemoteConfigService.getInstance(logger);
   sl.registerSingleton<RemoteConfigService>(remoteConfig);
 
-  //Strings de textos
+  // Core - Strings e Tema
   sl.registerLazySingleton(() => AppStrings(sl()));
+  sl.registerLazySingleton(() => AppTheme(remoteConfig: sl()));
 
   // Core - Analytics
   final analyticsService = AnalyticsService(
@@ -130,7 +141,9 @@ void _registerUseCases() {
     remoteConfig: sl(),
     strings: sl(),
   ));
+}
 
 void _registerBlocs() {
   sl.registerFactory(() => AuthBloc(authRepository: sl()));
+  // Outros blocs serão adicionados aqui
 }
