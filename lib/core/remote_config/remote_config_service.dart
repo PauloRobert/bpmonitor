@@ -1,47 +1,66 @@
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:flutter/material.dart';
+import 'package:bp_monitor/core/remote_config/remote_config_defaults.dart';
+import 'package:bp_monitor/core/utils/logger.dart';
 
 class RemoteConfigService {
   final FirebaseRemoteConfig _remoteConfig;
+  final AppLogger _logger;
 
-  RemoteConfigService._({required FirebaseRemoteConfig remoteConfig})
-      : _remoteConfig = remoteConfig;
+  RemoteConfigService._({
+    required FirebaseRemoteConfig remoteConfig,
+    required AppLogger logger,
+  }) : _remoteConfig = remoteConfig,
+        _logger = logger;
 
-  static Future<RemoteConfigService> getInstance() async {
+  static Future<RemoteConfigService> getInstance(AppLogger logger) async {
     final remoteConfig = FirebaseRemoteConfig.instance;
 
-    await remoteConfig.setConfigSettings(RemoteConfigSettings(
-      fetchTimeout: const Duration(minutes: 1),
-      minimumFetchInterval: const Duration(hours: 12),
-    ));
+    try {
+      await remoteConfig.setConfigSettings(RemoteConfigSettings(
+        fetchTimeout: const Duration(minutes: 1),
+        minimumFetchInterval: const Duration(hours: 12),
+      ));
 
-    await remoteConfig.setDefaults({
-      // Valores padrão de pressão
-      'min_systolic': 70,
-      'max_systolic': 250,
-      'min_diastolic': 40,
-      'max_diastolic': 150,
-      'min_heart_rate': 30,
-      'max_heart_rate': 220,
-      // Categorias de pressão
-      'optimal_systolic_max': 120,
-      'optimal_diastolic_max': 80,
-      'normal_systolic_max': 129,
-      'normal_diastolic_max': 84,
-      'elevated_systolic_max': 130,
-      'elevated_diastolic_max': 89,
-      'high_stage1_systolic_max': 139,
-      'high_stage1_diastolic_max': 89,
-      'high_stage2_systolic_max': 179,
-      'high_stage2_diastolic_max': 119,
-    });
+      await remoteConfig.setDefaults(RemoteConfigDefaults.defaults);
+      await remoteConfig.fetchAndActivate();
 
-    await remoteConfig.fetchAndActivate();
-
-    return RemoteConfigService._(remoteConfig: remoteConfig);
+      logger.i('Remote Config inicializado com sucesso');
+      return RemoteConfigService._(remoteConfig: remoteConfig, logger: logger);
+    } catch (e) {
+      logger.e('Erro ao configurar Remote Config', e);
+      return RemoteConfigService._(remoteConfig: remoteConfig, logger: logger);
+    }
   }
 
   int getInt(String key) => _remoteConfig.getInt(key);
   String getString(String key) => _remoteConfig.getString(key);
   bool getBool(String key) => _remoteConfig.getBool(key);
   double getDouble(String key) => _remoteConfig.getDouble(key);
+
+  Color getColor(String key) {
+    try {
+      final hexColor = getString(key);
+      if (hexColor.isEmpty || !hexColor.startsWith('#')) {
+        return Colors.blue; // Valor padrão em caso de erro
+      }
+
+      final hex = hexColor.replaceFirst('#', '');
+      return Color(int.parse('FF$hex', radix: 16));
+    } catch (e) {
+      _logger.e('Erro ao converter cor do Remote Config: $key', e);
+      return Colors.blue; // Valor padrão em caso de erro
+    }
+  }
+
+  Future<bool> forceRefresh() async {
+    try {
+      final updated = await _remoteConfig.fetchAndActivate();
+      _logger.i('Remote Config atualizado: $updated');
+      return updated;
+    } catch (e) {
+      _logger.e('Erro ao atualizar Remote Config', e);
+      return false;
+    }
+  }
 }
