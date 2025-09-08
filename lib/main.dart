@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/constants/app_constants.dart';
 import 'utils/app_router.dart';
-// FIX: Importar o pacote de localização
+import 'features/splash/splash_screen.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
@@ -22,17 +22,16 @@ class BPMonitorApp extends StatelessWidget {
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
 
-      // FIX: Adicionar delegates e locales suportados
+      // Localização
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('pt', 'BR'), // Português, Brasil
-        // Você pode adicionar outros locales aqui se precisar
+        Locale('pt', 'BR'),
       ],
-      locale: const Locale('pt', 'BR'), // Define o locale padrão do app
+      locale: const Locale('pt', 'BR'),
 
       theme: ThemeData(
         primarySwatch: _createMaterialColor(AppConstants.primaryColor),
@@ -83,14 +82,13 @@ class BPMonitorApp extends StatelessWidget {
           ),
         ),
       ),
-      // Seu onGenerateRoute e home continuam os mesmos
+
+      // CORREÇÃO: Vai direto pro SplashScreen
+      home: const SplashScreen(),
       onGenerateRoute: AppRouter.generateRoute,
-      initialRoute: AppRouter.splash, // É uma boa prática definir a rota inicial aqui
-      home: const AppInitializer(),
     );
   }
 
-  // ... (o resto do seu arquivo main.dart pode continuar igual)
   MaterialColor _createMaterialColor(Color color) {
     List strengths = <double>[.05];
     Map<int, Color> swatch = {};
@@ -110,56 +108,5 @@ class BPMonitorApp extends StatelessWidget {
       );
     }
     return MaterialColor(color.value, swatch);
-  }
-}
-
-class AppInitializer extends StatefulWidget {
-  const AppInitializer({super.key});
-
-  @override
-  State<AppInitializer> createState() => _AppInitializerState();
-}
-
-class _AppInitializerState extends State<AppInitializer> {
-  @override
-  void initState() {
-    super.initState();
-    _initializeApp();
-  }
-
-  Future<void> _initializeApp() async {
-    try {
-      AppConstants.logInfo('Inicializando aplicativo BP Monitor v${AppConstants.version}');
-
-      // Aguarda um tempo mínimo para o splash
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      final initialRoute = await AppRouter.getInitialRoute();
-
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed(initialRoute);
-      }
-    } catch (e, stackTrace) {
-      AppConstants.logError('Erro na inicialização do app', e, stackTrace);
-
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed(AppRouter.onboarding);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: AppConstants.splashGradient,
-      ),
-      child: const Center(
-        child: CircularProgressIndicator(
-          color: Colors.white,
-          strokeWidth: 2,
-        ),
-      ),
-    );
   }
 }

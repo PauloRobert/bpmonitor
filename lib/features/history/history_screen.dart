@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
+// REMOVIDO: import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/database/database_helper.dart';
+import '../../core/database/database_service.dart';
 import '../../shared/models/measurement_model.dart';
 import 'dart:math';
 
-/// Interface pública para controlar a HistoryScreen externamente
 abstract class HistoryScreenController {
   void loadMeasurements();
 }
@@ -21,7 +20,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     with SingleTickerProviderStateMixin
     implements HistoryScreenController {
   late TabController _tabController;
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final db = DatabaseService.instance;
 
   List<MeasurementModel> _measurements = [];
   List<MeasurementModel> _filteredMeasurements = [];
@@ -41,8 +40,6 @@ class _HistoryScreenState extends State<HistoryScreen>
     '3months': 'Últimos 3 meses',
   };
 
-  bool _showHeartRate = true;
-
   @override
   void initState() {
     super.initState();
@@ -58,7 +55,6 @@ class _HistoryScreenState extends State<HistoryScreen>
     super.dispose();
   }
 
-  /// Interface pública
   @override
   void loadMeasurements() {
     _loadMeasurements();
@@ -75,19 +71,17 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   Future<void> _loadMeasurements() async {
     try {
-      AppConstants.logInfo('Carregando histórico de medições');
       setState(() {
         _isLoading = true;
         _currentPage = 0;
       });
-      final measurements = await _dbHelper.getAllMeasurements();
+      final measurements = await db.getAllMeasurements();
       setState(() {
         _measurements = measurements;
         _filteredMeasurements = _applyPeriodFilter(measurements);
         _isLoading = false;
         _hasMoreData = _filteredMeasurements.length > _itemsPerPage;
       });
-      AppConstants.logInfo('Histórico carregado: ${measurements.length} medições');
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao carregar histórico', e, stackTrace);
       setState(() {
@@ -137,7 +131,6 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   void _editMeasurement(MeasurementModel measurement) {
-    AppConstants.logNavigation('HistoryScreen', 'EditMeasurementScreen');
     // TODO: Navegar para tela de edição
   }
 
@@ -145,7 +138,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     final confirmed = await _showDeleteDialog();
     if (confirmed == true) {
       try {
-        await _dbHelper.deleteMeasurement(measurement.id!);
+        await db.deleteMeasurement(measurement.id!);
         _loadMeasurements();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -248,7 +241,6 @@ class _HistoryScreenState extends State<HistoryScreen>
     );
   }
 
-  // ======== LIST VIEW ========
   Widget _buildListView() {
     if (_isLoading) {
       return const Center(
@@ -461,7 +453,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     );
   }
 
-// ======== CHART VIEW ========
+  // CORREÇÃO: Chart placeholder otimizado
   Widget _buildChartView() {
     if (_filteredMeasurements.isEmpty) {
       return Center(
@@ -472,143 +464,47 @@ class _HistoryScreenState extends State<HistoryScreen>
       );
     }
 
-    final data = _filteredMeasurements;
-
-    // Calcula minY e maxY
-    final systolicMin = data.map((m) => m.systolic.toDouble()).reduce(min);
-    final systolicMax = data.map((m) => m.systolic.toDouble()).reduce(max);
-    final diastolicMin = data.map((m) => m.diastolic.toDouble()).reduce(min);
-    final diastolicMax = data.map((m) => m.diastolic.toDouble()).reduce(max);
-
-    double minY = min(systolicMin, diastolicMin) - 10;
-    double maxY = max(systolicMax, diastolicMax) + 10;
-
-    if (_showHeartRate) {
-      final hrMin = data.map((m) => m.heartRate.toDouble()).reduce(min);
-      final hrMax = data.map((m) => m.heartRate.toDouble()).reduce(max);
-      minY = min(minY, hrMin) - 10;
-      maxY = max(maxY, hrMax) + 10;
-    }
-
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          Row(
-            children: [
-              Switch(
-                value: _showHeartRate,
-                onChanged: (v) => setState(() => _showHeartRate = v),
-                activeColor: AppConstants.primaryColor,
-              ),
-              const SizedBox(width: 8),
-              const Text('Mostrar frequência cardíaca'),
-            ],
-          ),
-          const SizedBox(height: 16),
+          // Estatísticas simples no lugar do gráfico
+          _buildStatsCards(),
+          const SizedBox(height: 24),
           Expanded(
-            child: LineChart(
-              LineChartData(
-                minY: minY,
-                maxY: maxY,
-                lineTouchData: LineTouchData(
-                  enabled: true,
-                  handleBuiltInTouches: true,
-                  touchTooltipData: LineTouchTooltipData(
-                    tooltipRoundedRadius: 8,
-                    tooltipPadding: const EdgeInsets.all(8),
-                    getTooltipItems: (touchedSpots) {
-                      return touchedSpots.map((spot) {
-                        if (spot == null) return null;
-                        final index = spot.x.toInt();
-                        if (index < 0 || index >= data.length) return null;
-                        final m = data[index];
-
-                        // Texto limitado manualmente
-                        String tooltip = "${m.formattedDate}\n${m.systolic}/${m.diastolic} mmHg";
-                        if (_showHeartRate) {
-                          tooltip += "\n❤️ ${m.heartRate} bpm";
-                        }
-
-                        // Se houver notas longas, limita manualmente
-                        if (m.notes != null && m.notes!.isNotEmpty) {
-                          final note = m.notes!.length > 50
-                              ? "${m.notes!.substring(0, 50)}..."
-                              : m.notes!;
-                          tooltip += "\n📝 $note";
-                        }
-
-                        return LineTooltipItem(
-                          tooltip,
-                          const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        );
-                      }).toList();
-                    },
-                  ),
-                ),
-                titlesData: FlTitlesData(
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(showTitles: true, reservedSize: 40),
-                  ),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      interval: 1,
-                      getTitlesWidget: (value, meta) {
-                        final index = value.toInt();
-                        if (index < 0 || index >= data.length) return const SizedBox.shrink();
-                        final date = data[index].formattedDate;
-                        return Text(
-                          date,
-                          style: const TextStyle(fontSize: 10),
-                        );
-                      },
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: AppConstants.primaryColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.show_chart,
+                      size: 48,
+                      color: AppConstants.primaryColor,
                     ),
                   ),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                gridData: FlGridData(show: true, drawVerticalLine: true),
-                borderData: FlBorderData(show: true, border: Border.all(color: Colors.black26)),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: List.generate(
-                      data.length,
-                          (i) => FlSpot(i.toDouble(), data[i].systolic.toDouble()),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Gráficos Interativos',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: AppConstants.textPrimary,
                     ),
-                    isCurved: true,
-                    color: Colors.red,
-                    barWidth: 3,
-                    belowBarData: BarAreaData(show: true, color: Colors.red.withOpacity(0.2)),
-                    dotData: FlDotData(show: true),
                   ),
-                  LineChartBarData(
-                    spots: List.generate(
-                      data.length,
-                          (i) => FlSpot(i.toDouble(), data[i].diastolic.toDouble()),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Em desenvolvimento',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppConstants.textSecondary,
                     ),
-                    isCurved: true,
-                    color: Colors.blue,
-                    barWidth: 3,
-                    belowBarData: BarAreaData(show: true, color: Colors.blue.withOpacity(0.2)),
-                    dotData: FlDotData(show: true),
                   ),
-                  if (_showHeartRate)
-                    LineChartBarData(
-                      spots: List.generate(
-                        data.length,
-                            (i) => FlSpot(i.toDouble(), data[i].heartRate.toDouble()),
-                      ),
-                      isCurved: true,
-                      color: Colors.green,
-                      barWidth: 2,
-                      dashArray: [5, 5],
-                      dotData: FlDotData(show: true),
-                    ),
                 ],
               ),
             ),
@@ -618,7 +514,99 @@ class _HistoryScreenState extends State<HistoryScreen>
     );
   }
 
-// ======== CHART VIEW ========
+  Widget _buildStatsCards() {
+    if (_filteredMeasurements.isEmpty) return const SizedBox.shrink();
 
+    final data = _filteredMeasurements;
+    final systolicAvg = data.map((m) => m.systolic).reduce((a, b) => a + b) / data.length;
+    final diastolicAvg = data.map((m) => m.diastolic).reduce((a, b) => a + b) / data.length;
+    final hrAvg = data.map((m) => m.heartRate).reduce((a, b) => a + b) / data.length;
 
+    final systolicMax = data.map((m) => m.systolic).reduce(max);
+    final systolicMin = data.map((m) => m.systolic).reduce(min);
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Média',
+                '${systolicAvg.round()}/${diastolicAvg.round()}',
+                'mmHg',
+                Colors.blue,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                'Batimentos',
+                '${hrAvg.round()}',
+                'bpm',
+                Colors.red,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildStatCard(
+                'Máxima',
+                '$systolicMax',
+                'mmHg',
+                Colors.orange,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildStatCard(
+                'Mínima',
+                '$systolicMin',
+                'mmHg',
+                Colors.green,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, String unit, Color color) {
+    return Card(
+      elevation: 1,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: AppConstants.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+            Text(
+              unit,
+              style: TextStyle(
+                fontSize: 10,
+                color: AppConstants.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

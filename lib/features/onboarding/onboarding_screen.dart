@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/database/database_helper.dart';
+import '../../core/database/database_service.dart';
 import '../../shared/models/user_model.dart';
 import '../../utils/app_router.dart';
 
@@ -20,7 +20,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _currentPage = 0;
   bool _isLoading = false;
 
-  final DatabaseHelper _dbHelper = DatabaseHelper();
+  final db = DatabaseService.instance;
 
   @override
   void dispose() {
@@ -100,7 +100,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
 
       // ✅ FIX: Salvar usuário no database
-      await _dbHelper.insertUser(user);
+      await db.insertUser(user);
       AppConstants.logInfo('Usuário salvo: ${user.name}, ${user.age} anos');
 
       // ✅ FIX: CRÍTICO - Marcar onboarding como concluído

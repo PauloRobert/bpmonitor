@@ -121,9 +121,9 @@ class AppConstants {
   );
 
   // Duração de animações
-  static const Duration splashDuration = Duration(seconds: 3);
-  static const Duration fadeAnimationDuration = Duration(milliseconds: 800);
-  static const Duration scaleAnimationDuration = Duration(milliseconds: 1200);
+  static const Duration splashDuration = Duration(milliseconds: 1500);
+  static const Duration fadeAnimationDuration = Duration(milliseconds: 400);
+  static const Duration scaleAnimationDuration = Duration(milliseconds: 600);
 
   // Onboarding
   static const List<Map<String, dynamic>> onboardingData = [

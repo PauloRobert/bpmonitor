@@ -14,7 +14,6 @@ dependencies:
 
   # State Management
   flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.5
 
   # Database
   sqflite: ^2.3.0
@@ -24,18 +23,9 @@ dependencies:
   shared_preferences: ^2.2.3
 
   #gráficos
-  fl_chart: ^0.71.0
+  # fl_chart: ^0.71.0
   intl: ^0.20.2
-
 
 flutter:
   uses-material-design: true
-  fonts:
-    - family: Inter
-      fonts:
-        - asset: assets/fonts/Inter_Regular.ttf
-          weight: 400
-        - asset: assets/fonts/Inter_SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/Inter_Bold.ttf
-          weight: 700
+  # CORREÇÃO: Fontes removidas temporariamente

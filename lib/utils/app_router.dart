@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import '../core/database/database_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../shared/widgets/main_navigation.dart';
+import '../core/constants/app_constants.dart';
 
 class AppRouter {
   static const String splash = '/';
@@ -37,16 +38,12 @@ class AppRouter {
     }
   }
 
+  // CORREÇÃO: Método mais rápido, apenas SharedPreferences
   static Future<String> getInitialRoute() async {
     try {
-      final dbHelper = DatabaseHelper();
-      final user = await dbHelper.getUser();
-
-      if (user == null) {
-        return onboarding;
-      }
-
-      return main;
+      final prefs = await SharedPreferences.getInstance();
+      final isOnboardingComplete = prefs.getBool(AppConstants.onboardingCompleteKey) ?? false;
+      return isOnboardingComplete ? main : onboarding;
     } catch (e) {
       return onboarding;
     }
