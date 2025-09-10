@@ -292,110 +292,57 @@ class _ReportsScreenState extends State<ReportsScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
-      body: _isLoading
-          ? const Center(
-        child: CircularProgressIndicator(color: AppConstants.primaryColor),
-      )
-          : FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: _buildContent(),
+      // Padding para evitar que o conteúdo fique atrás do menu inferior
+      body: SafeArea(
+        bottom: true, // Garante espaço na parte inferior
+        child: _isLoading
+            ? const Center(
+          child: CircularProgressIndicator(color: AppConstants.primaryColor),
+        )
+            : FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: _buildContent(),
+          ),
         ),
       ),
     );
   }
 
   Widget _buildContent() {
-    return CustomScrollView(
-      slivers: [
-        // AppBar artística
-        SliverAppBar(
-          expandedHeight: 200,
-          floating: false,
-          pinned: true,
-          backgroundColor: AppConstants.primaryColor,
-          automaticallyImplyLeading: false,
-          flexibleSpace: FlexibleSpaceBar(
-            background: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF667eea),
-                    Color(0xFF764ba2),
-                    Color(0xFFf093fb),
-                  ],
-                ),
-              ),
-              child: SafeArea(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 40),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        Icons.analytics,
-                        size: 40,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Relatório de Saúde',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    if (_user != null)
-                      Text(
-                        _user!.name,
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.white.withOpacity(0.9),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(60),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              child: _buildPeriodSelector(),
-            ),
-          ),
-        ),
+    return Column(
+      children: [
+        // AppBar simplificada e fixa
+        _buildAppBar(),
 
-        // Conteúdo
-        SliverToBoxAdapter(
+        // Seletor de período redesenhado
+        _buildPeriodSelector(),
+
+        // Conteúdo principal com scroll
+        Expanded(
           child: _reportData.isEmpty
               ? _buildEmptyState()
-              : Padding(
-            padding: const EdgeInsets.all(16),
+              : SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 80), // Padding extra no fundo
+            physics: const BouncingScrollPhysics(),
             child: Column(
               children: [
+                const SizedBox(height: 16),
+                // Primeiro o card de tendência conforme solicitado
+                _buildTrendCard(),
+                const SizedBox(height: 16),
                 _buildSummaryCard(),
                 const SizedBox(height: 16),
                 _buildStatisticsGrid(),
-                const SizedBox(height: 16),
-                _buildTrendCard(),
                 const SizedBox(height: 16),
                 _buildCategoryDistribution(),
                 const SizedBox(height: 16),
                 _buildInsightsCard(),
                 const SizedBox(height: 16),
                 _buildActionButtons(),
+                // Espaço extra no final para garantir que nada fique escondido pelo menu
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -404,42 +351,93 @@ class _ReportsScreenState extends State<ReportsScreen>
     );
   }
 
+  Widget _buildAppBar() {
+    return Container(
+      height: 120,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF667eea),
+            Color(0xFF764ba2),
+          ],
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.analytics,
+              size: 30,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Relatório de Saúde',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          // Nome do usuário removido conforme solicitado
+        ],
+      ),
+    );
+  }
+
   Widget _buildPeriodSelector() {
     return Container(
-      height: 40,
-      child: ListView.builder(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        itemCount: _periods.length,
-        itemBuilder: (context, index) {
-          final period = _periods.keys.elementAt(index);
-          final isSelected = period == _selectedPeriod;
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => _changePeriod(period),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? Colors.white : Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: _periods.keys.map((period) {
+            final isSelected = period == _selectedPeriod;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: InkWell(
+                onTap: () => _changePeriod(period),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppConstants.primaryColor : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                ),
-                child: Text(
-                  _periods[period]!,
-                  style: TextStyle(
-                    color: isSelected ? AppConstants.primaryColor : Colors.white,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                    fontSize: 12,
+                  child: Text(
+                    _periods[period]!,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : AppConstants.textPrimary,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          }).toList(),
+        ),
       ),
     );
   }
@@ -494,11 +492,11 @@ class _ReportsScreenState extends State<ReportsScreen>
     return ScaleTransition(
       scale: _chartAnimation,
       child: Card(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
               colors: [
                 AppConstants.primaryColor.withOpacity(0.1),
@@ -506,32 +504,32 @@ class _ReportsScreenState extends State<ReportsScreen>
               ],
             ),
           ),
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(16),
           child: Column(
             children: [
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: AppConstants.primaryColor,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(
                       Icons.summarize,
                       color: Colors.white,
-                      size: 24,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Resumo - ${_periods[_selectedPeriod]}',
+                          'Resumo',
                           style: const TextStyle(
-                            fontSize: 18,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: AppConstants.textPrimary,
                           ),
@@ -539,7 +537,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                         Text(
                           '$totalMeasurements medições registradas',
                           style: const TextStyle(
-                            fontSize: 14,
+                            fontSize: 12,
                             color: AppConstants.textSecondary,
                           ),
                         ),
@@ -549,7 +547,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                 ],
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
               Row(
                 children: [
@@ -591,21 +589,21 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   Widget _buildSummaryItem(String label, String value, String unit, Color color, IconData icon) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(height: 8),
+          Icon(icon, color: color, size: 16),
+          const SizedBox(height: 4),
           Text(
             value,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: color,
             ),
@@ -620,7 +618,7 @@ class _ReportsScreenState extends State<ReportsScreen>
           Text(
             label,
             style: const TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               color: AppConstants.textSecondary,
             ),
           ),
@@ -666,11 +664,11 @@ class _ReportsScreenState extends State<ReportsScreen>
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           color: color.withOpacity(0.05),
         ),
         child: Column(
@@ -681,9 +679,9 @@ class _ReportsScreenState extends State<ReportsScreen>
                 color: color.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: color, size: 20),
+              child: Icon(icon, color: color, size: 16),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               title,
               style: const TextStyle(
@@ -717,66 +715,91 @@ class _ReportsScreenState extends State<ReportsScreen>
     return ScaleTransition(
       scale: _chartAnimation,
       child: Card(
-        elevation: 2,
+        elevation: 3, // Elevação maior para destaque
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
               colors: [
-                trendColor.withOpacity(0.1),
+                trendColor.withOpacity(0.2),
                 trendColor.withOpacity(0.05),
               ],
             ),
           ),
-          child: Row(
+          child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: trendColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(trendIcon, color: Colors.white, size: 24),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Tendência',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppConstants.textPrimary,
-                      ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: trendColor,
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    Text(
-                      trendText,
+                    child: Icon(trendIcon, color: Colors.white, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Tendência',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppConstants.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          trendText,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: trendColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: trendColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      _periods[_selectedPeriod]!,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 11,
                         color: trendColor,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+
+              // Descrição adicional para destacar o card de tendência
+              const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: trendColor.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(20),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: trendColor.withOpacity(0.3)),
                 ),
                 child: Text(
-                  _periods[_selectedPeriod]!,
+                  _getTrendDescription(trend),
                   style: TextStyle(
                     fontSize: 12,
-                    color: trendColor,
-                    fontWeight: FontWeight.w600,
+                    color: AppConstants.textSecondary,
                   ),
+                  textAlign: TextAlign.center,
                 ),
               ),
             ],
@@ -784,6 +807,18 @@ class _ReportsScreenState extends State<ReportsScreen>
         ),
       ),
     );
+  }
+
+  // Função adicional para descrição da tendência
+  String _getTrendDescription(String trend) {
+    switch (trend) {
+      case 'increasing':
+        return 'Sua pressão tem aumentado. Considere consultar um médico.';
+      case 'decreasing':
+        return 'Sua pressão está diminuindo. Continue acompanhando.';
+      default:
+        return 'Sua pressão está estável, continue monitorando regularmente.';
+    }
   }
 
   Widget _buildCategoryDistribution() {
@@ -800,7 +835,7 @@ class _ReportsScreenState extends State<ReportsScreen>
           elevation: 2,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -815,21 +850,21 @@ class _ReportsScreenState extends State<ReportsScreen>
                       child: Icon(
                         Icons.pie_chart,
                         color: AppConstants.primaryColor,
-                        size: 20,
+                        size: 16,
                       ),
                     ),
                     const SizedBox(width: 12),
                     const Text(
                       'Distribuição por Categoria',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: AppConstants.textPrimary,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 ...distribution.entries.map((entry) {
                   final category = entry.key;
@@ -868,54 +903,54 @@ class _ReportsScreenState extends State<ReportsScreen>
                   }
 
                   return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: 8),
                     child: Column(
                       children: [
                         Row(
                           children: [
                             Container(
-                              width: 12,
-                              height: 12,
+                              width: 10,
+                              height: 10,
                               decoration: BoxDecoration(
                                 color: color,
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(5),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 categoryName,
                                 style: const TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                   color: AppConstants.textPrimary,
                                 ),
                               ),
                             ),
                             Text(
-                              '$count medições',
+                              '$count',
                               style: const TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
                                 color: AppConstants.textSecondary,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 4),
                             Text(
                               '$percentage%',
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: color,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 4),
                         LinearProgressIndicator(
                           value: _chartAnimation.value * (percentage / 100),
                           backgroundColor: color.withOpacity(0.2),
                           valueColor: AlwaysStoppedAnimation(color),
-                          minHeight: 6,
+                          minHeight: 4,
                         ),
                       ],
                     ),
@@ -951,15 +986,10 @@ class _ReportsScreenState extends State<ReportsScreen>
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              colors: [
-                AppConstants.warningColor.withOpacity(0.1),
-                AppConstants.warningColor.withOpacity(0.05),
-              ],
-            ),
+            color: AppConstants.warningColor.withOpacity(0.05),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -975,21 +1005,21 @@ class _ReportsScreenState extends State<ReportsScreen>
                     child: const Icon(
                       Icons.lightbulb,
                       color: Colors.white,
-                      size: 20,
+                      size: 16,
                     ),
                   ),
                   const SizedBox(width: 12),
                   const Text(
                     'Insights Pessoais',
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: AppConstants.textPrimary,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
               _buildInsightItem(
                 Icons.schedule,
@@ -1024,7 +1054,7 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   Widget _buildInsightItem(IconData icon, String title, String description) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1034,9 +1064,9 @@ class _ReportsScreenState extends State<ReportsScreen>
               color: AppConstants.warningColor.withOpacity(0.2),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Icon(icon, size: 16, color: AppConstants.warningColor),
+            child: Icon(icon, size: 14, color: AppConstants.warningColor),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1044,7 +1074,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: AppConstants.textPrimary,
                   ),
@@ -1052,7 +1082,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                 Text(
                   description,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     color: AppConstants.textSecondary,
                   ),
                 ),
@@ -1078,11 +1108,11 @@ class _ReportsScreenState extends State<ReportsScreen>
                 ),
               );
             },
-            icon: const Icon(Icons.picture_as_pdf),
+            icon: const Icon(Icons.picture_as_pdf, size: 18),
             label: const Text('Gerar PDF'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppConstants.primaryColor,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -1101,10 +1131,10 @@ class _ReportsScreenState extends State<ReportsScreen>
                 ),
               );
             },
-            icon: const Icon(Icons.share),
+            icon: const Icon(Icons.share, size: 18),
             label: const Text('Compartilhar'),
             style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
