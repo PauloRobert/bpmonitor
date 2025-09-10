@@ -11,7 +11,8 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with SingleTickerProviderStateMixin {
   final db = DatabaseService.instance;
   final _formKey = GlobalKey<FormState>();
 
@@ -23,14 +24,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isEditing = false;
   bool _isSaving = false;
 
+  // Animation
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
   @override
   void initState() {
     super.initState();
+    _initializeAnimation();
     _loadUserData();
+  }
+
+  void _initializeAnimation() {
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutQuart,
+    ));
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.2),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeOutQuart,
+    ));
   }
 
   @override
   void dispose() {
+    _animationController.dispose();
     _nameController.dispose();
     _birthDateController.dispose();
     super.dispose();
@@ -47,6 +78,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _nameController.text = user.name;
           _birthDateController.text = user.birthDate;
         });
+        _animationController.forward();
       }
     } catch (e) {
       _showError('Erro ao carregar dados do usuário');
@@ -64,6 +96,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       locale: const Locale('pt', 'BR'),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: AppConstants.primaryColor,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null) {
@@ -110,7 +152,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Text(message),
           ],
         ),
-        backgroundColor: Colors.green,
+        backgroundColor: AppConstants.successColor,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -118,8 +161,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 8),
+            Text(message),
+          ],
+        ),
+        backgroundColor: AppConstants.dangerColor,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -135,30 +185,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  Future<void> _showDeleteDataDialog() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: AppConstants.dangerColor),
+            const SizedBox(width: 8),
+            const Text('Excluir todos os dados?'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Esta ação irá remover permanentemente:',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 12),
+            Text('• Todas as medições registradas'),
+            Text('• Dados do perfil'),
+            Text('• Histórico completo'),
+            SizedBox(height: 12),
+            Text(
+              'Esta ação não pode ser desfeita.',
+              style: TextStyle(
+                color: AppConstants.dangerColor,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppConstants.dangerColor,
+            ),
+            child: const Text('Excluir Tudo'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await db.clearAllData();
+        if (mounted) {
+          _showSuccess('Todos os dados foram removidos');
+          // Recarregar dados
+          _loadUserData();
+        }
+      } catch (e) {
+        _showError('Erro ao excluir dados');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
-      appBar: AppBar(
-        title: const Text('Meu Perfil'),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          if (!_isLoading && _currentUser != null)
-            IconButton(
-              icon: Icon(
-                _isEditing ? Icons.close : Icons.edit,
-                color: AppConstants.textPrimary,
-              ),
-              onPressed: _toggleEdit,
-            ),
-        ],
-      ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryColor))
           : _currentUser == null
           ? _buildNoUserState()
-          : _buildProfileContent(),
+          : FadeTransition(
+        opacity: _fadeAnimation,
+        child: SlideTransition(
+          position: _slideAnimation,
+          child: _buildProfileContent(),
+        ),
+      ),
     );
   }
 
@@ -189,94 +294,145 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          children: [
-            _buildAvatar(),
-            const SizedBox(height: 32),
-            _buildInfoCard(),
-            const SizedBox(height: 24),
-            _buildStatisticsCard(),
-            if (_isEditing) ...[
-              const SizedBox(height: 32),
-              _buildSaveButton(),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAvatar() {
-    return Stack(
-      children: [
-        Container(
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            gradient: AppConstants.logoGradient,
-            shape: BoxShape.circle,
+    return CustomScrollView(
+      slivers: [
+        // AppBar personalizada
+        SliverAppBar(
+          expandedHeight: 200,
+          floating: false,
+          pinned: true,
+          backgroundColor: AppConstants.primaryColor,
+          elevation: 0,
+          automaticallyImplyLeading: false,
+          flexibleSpace: FlexibleSpaceBar(
+            background: Container(
+              decoration: const BoxDecoration(
+                gradient: AppConstants.splashGradient,
+              ),
+              child: SafeArea(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 40),
+                    // Avatar com iniciais
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: Center(
+                        child: Text(
+                          _currentUser!.name.isNotEmpty
+                              ? _currentUser!.name[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _currentUser!.name,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_currentUser!.age} anos',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-          child: Center(
-            child: Text(
-              _currentUser!.name.isNotEmpty
-                  ? _currentUser!.name[0].toUpperCase()
-                  : '?',
-              style: const TextStyle(
-                fontSize: 48,
-                fontWeight: FontWeight.bold,
+          actions: [
+            IconButton(
+              icon: Icon(
+                _isEditing ? Icons.close : Icons.edit,
                 color: Colors.white,
               ),
+              onPressed: _toggleEdit,
+            ),
+          ],
+        ),
+
+        // Conteúdo
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  _buildPersonalInfoCard(),
+                  const SizedBox(height: 16),
+                  _buildStatisticsCard(),
+                  const SizedBox(height: 16),
+                  _buildHealthCard(),
+                  const SizedBox(height: 16),
+                  _buildActionsCard(),
+                  if (_isEditing) ...[
+                    const SizedBox(height: 24),
+                    _buildSaveButton(),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
-        if (_isEditing)
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppConstants.primaryColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Upload de foto em desenvolvimento'),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
       ],
     );
   }
 
-  Widget _buildInfoCard() {
+  Widget _buildPersonalInfoCard() {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Informações Pessoais',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.textPrimary,
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppConstants.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.person,
+                    color: AppConstants.primaryColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Informações Pessoais',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.textPrimary,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
 
@@ -286,7 +442,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               enabled: _isEditing,
               decoration: InputDecoration(
                 labelText: 'Nome completo',
-                prefixIcon: const Icon(Icons.person),
+                prefixIcon: const Icon(Icons.person_outline),
                 border: _isEditing ? const OutlineInputBorder() : InputBorder.none,
                 filled: !_isEditing,
                 fillColor: Colors.grey.shade50,
@@ -312,7 +468,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: _isEditing ? _selectBirthDate : null,
               decoration: InputDecoration(
                 labelText: 'Data de nascimento',
-                prefixIcon: const Icon(Icons.cake),
+                prefixIcon: const Icon(Icons.cake_outlined),
                 suffixIcon: _isEditing ? const Icon(Icons.calendar_today) : null,
                 border: _isEditing ? const OutlineInputBorder() : InputBorder.none,
                 filled: !_isEditing,
@@ -326,34 +482,63 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
 
-            const SizedBox(height: 16),
-
-            // Idade calculada
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppConstants.primaryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.calendar_month,
-                    color: AppConstants.primaryColor,
-                    size: 20,
+            if (!_isEditing) ...[
+              const SizedBox(height: 16),
+              // Idade destacada
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppConstants.primaryColor.withOpacity(0.1),
+                      AppConstants.primaryColor.withOpacity(0.05),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Idade: ${_currentUser!.age} anos',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: AppConstants.primaryColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppConstants.primaryColor.withOpacity(0.2),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppConstants.primaryColor,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.cake,
+                        color: Colors.white,
+                        size: 16,
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Idade atual',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppConstants.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          '${_currentUser!.age} anos',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppConstants.primaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -367,38 +552,68 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Card(
       elevation: 1,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Estatísticas',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: AppConstants.textPrimary,
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppConstants.successColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.analytics,
+                    color: AppConstants.successColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Estatísticas de Uso',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.textPrimary,
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 20),
+
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatItem(
+                    Icons.today,
+                    'Dias de uso',
+                    '$daysSinceCreation',
+                    AppConstants.primaryColor,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildStatItem(
+                    Icons.calendar_month,
+                    'Membro desde',
+                    '${createdDate.month}/${createdDate.year}',
+                    AppConstants.successColor,
+                  ),
+                ),
+              ],
+            ),
+
             const SizedBox(height: 16),
-            _buildStatRow(
-              Icons.today,
-              'Usando o app há',
-              '$daysSinceCreation dias',
-            ),
-            const SizedBox(height: 12),
-            _buildStatRow(
-              Icons.calendar_today,
-              'Cadastro em',
-              '${createdDate.day}/${createdDate.month}/${createdDate.year}',
-            ),
-            const SizedBox(height: 12),
+
             _buildStatRow(
               Icons.update,
               'Última atualização',
-              '${_currentUser!.updatedAt.day}/${_currentUser!.updatedAt.month}/${_currentUser!.updatedAt.year}',
+              '${_currentUser!.updatedAt.day}/${_currentUser!.updatedAt.month}/${_currentUser!.updatedAt.year} às ${_currentUser!.updatedAt.hour}:${_currentUser!.updatedAt.minute.toString().padLeft(2, '0')}',
             ),
           ],
         ),
@@ -406,11 +621,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildStatItem(IconData icon, String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppConstants.textSecondary,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatRow(IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: AppConstants.textSecondary),
-        const SizedBox(width: 8),
+        Icon(icon, size: 18, color: AppConstants.textSecondary),
+        const SizedBox(width: 12),
         Expanded(
           child: Text(
             label,
@@ -432,6 +680,171 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildHealthCard() {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppConstants.dangerColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.favorite,
+                    color: AppConstants.dangerColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Saúde e Monitoramento',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            _buildHealthTip(
+              Icons.schedule,
+              'Meça sua pressão sempre no mesmo horário',
+              'Preferencialmente pela manhã, em jejum',
+            ),
+            const SizedBox(height: 12),
+            _buildHealthTip(
+              Icons.self_improvement,
+              'Descanse 5 minutos antes da medição',
+              'Evite atividades físicas 30 min antes',
+            ),
+            const SizedBox(height: 12),
+            _buildHealthTip(
+              Icons.medical_information,
+              'Compartilhe seus dados com seu médico',
+              'Use os relatórios para acompanhamento',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthTip(IconData icon, String title, String subtitle) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: AppConstants.primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Icon(icon, size: 16, color: AppConstants.primaryColor),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppConstants.textPrimary,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppConstants.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionsCard() {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppConstants.warningColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.settings,
+                    color: AppConstants.warningColor,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Ações',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            ListTile(
+              leading: Icon(Icons.backup, color: AppConstants.primaryColor),
+              title: const Text('Backup dos dados'),
+              subtitle: const Text('Em desenvolvimento'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
+                );
+              },
+            ),
+
+            const Divider(),
+
+            ListTile(
+              leading: Icon(Icons.delete_forever, color: AppConstants.dangerColor),
+              title: const Text('Excluir todos os dados'),
+              subtitle: const Text('Remove permanentemente todas as informações'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: _showDeleteDataDialog,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
@@ -440,6 +853,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppConstants.primaryColor,
           padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
         child: _isSaving
             ? const SizedBox(
