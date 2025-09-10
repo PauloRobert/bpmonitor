@@ -39,9 +39,9 @@ class _ReportsScreenState extends State<ReportsScreen>
   final Map<String, String> _periods = {
     'week': 'Última semana',
     'month': 'Último mês',
-    '3months': 'Últimos 3 meses',
-    'year': 'Último ano',
-    'all': 'Todo período',
+    '3months': '3 meses',
+    //'year': 'Último ano',
+    //'all': 'Todo período',
   };
 
   @override
@@ -354,6 +354,7 @@ class _ReportsScreenState extends State<ReportsScreen>
   Widget _buildAppBar() {
     return Container(
       height: 120,
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -367,6 +368,7 @@ class _ReportsScreenState extends State<ReportsScreen>
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Container(
             padding: const EdgeInsets.all(10),
@@ -376,7 +378,7 @@ class _ReportsScreenState extends State<ReportsScreen>
             ),
             child: const Icon(
               Icons.analytics,
-              size: 30,
+              size: 20,
               color: Colors.white,
             ),
           ),
