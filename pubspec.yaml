@@ -25,6 +25,9 @@ dependencies:
   #gráficos
   # fl_chart: ^0.71.0
   intl: ^0.20.2
+  pdf: ^3.10.4
+  path_provider: ^2.1.1
+  share_plus: ^7.1.0
 
 flutter:
   uses-material-design: true

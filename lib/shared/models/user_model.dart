@@ -4,7 +4,7 @@ import '../../core/constants/app_constants.dart';
 class UserModel {
   final int? id;
   final String name;
-  final String birthDate;
+  final String birthDate; // armazenado como String (ISO8601 ou "yyyy-MM-dd")
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -24,15 +24,26 @@ class UserModel {
         createdAt = DateTime.now(),
         updatedAt = DateTime.now();
 
+  /// Getter que retorna a data de nascimento como DateTime
+  DateTime? get birthDateAsDateTime {
+    try {
+      if (birthDate.isEmpty) return null;
+      return DateTime.parse(birthDate);
+    } catch (e, stackTrace) {
+      AppConstants.logError('Erro ao converter birthDate para DateTime', e, stackTrace);
+      return null;
+    }
+  }
+
   /// Calcula a idade baseada na data de nascimento
   int get age {
     try {
-      if (birthDate.isEmpty) {
-        AppConstants.logWarning('Tentativa de calcular idade com birthDate vazio');
+      final birth = birthDateAsDateTime;
+      if (birth == null) {
+        AppConstants.logWarning('Tentativa de calcular idade com birthDate inválido ou vazio');
         return 0;
       }
 
-      final birth = DateTime.parse(birthDate);
       final today = DateTime.now();
       int calculatedAge = today.year - birth.year;
 
@@ -55,7 +66,8 @@ class UserModel {
     final birthDateValid = birthDate.isNotEmpty;
     final ageValid = age >= 10 && age <= 120;
 
-    AppConstants.logInfo('Validação do usuário: name=$nameValid, birthDate=$birthDateValid, age=$ageValid (${age} anos)');
+    AppConstants.logInfo(
+        'Validação do usuário: name=$nameValid, birthDate=$birthDateValid, age=$ageValid (${age} anos)');
 
     return nameValid && birthDateValid && ageValid;
   }
@@ -69,8 +81,10 @@ class UserModel {
         id: map['id'] as int?,
         name: map['name'] as String? ?? '',
         birthDate: map['birth_date'] as String? ?? '',
-        createdAt: DateTime.parse(map['created_at'] as String? ?? DateTime.now().toIso8601String()),
-        updatedAt: DateTime.parse(map['updated_at'] as String? ?? DateTime.now().toIso8601String()),
+        createdAt: DateTime.parse(
+            map['created_at'] as String? ?? DateTime.now().toIso8601String()),
+        updatedAt: DateTime.parse(
+            map['updated_at'] as String? ?? DateTime.now().toIso8601String()),
       );
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao converter Map para UserModel', e, stackTrace);

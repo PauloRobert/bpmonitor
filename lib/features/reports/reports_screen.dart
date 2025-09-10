@@ -4,6 +4,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/database/database_service.dart';
 import '../../shared/models/measurement_model.dart';
 import '../../shared/models/user_model.dart';
+import '../../features/reports/report_pdf_service.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -1096,20 +1097,16 @@ class _ReportsScreenState extends State<ReportsScreen>
     );
   }
 
+ //PDF
   Widget _buildActionButtons() {
     return Column(
       children: [
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Funcionalidade de export PDF em desenvolvimento'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            onPressed: _isLoading || _reportData.isEmpty
+                ? null // Desabilitar se estiver carregando ou sem dados
+                : _generateAndSharePDF,
             icon: const Icon(Icons.picture_as_pdf, size: 18),
             label: const Text('Gerar PDF'),
             style: ElevatedButton.styleFrom(
@@ -1144,6 +1141,99 @@ class _ReportsScreenState extends State<ReportsScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _generateAndSharePDF() async {
+    // Mostrar indicador de progresso
+    final loadingOverlay = _showLoadingOverlay(context);
+
+    try {
+      // Verificar se temos usuário e dados de relatório
+      if (_user == null || _reportData.isEmpty) {
+        _hideLoadingOverlay(loadingOverlay);
+        _showErrorMessage('Dados insuficientes para gerar o relatório');
+        return;
+      }
+
+      // Obter o label do período selecionado
+      final periodLabel = _periods[_selectedPeriod] ?? 'Período personalizado';
+
+      // Gerar o PDF usando o serviço
+      final pdfService = ReportPdfService();
+      final pdfPath = await pdfService.generateHealthReport(
+        user: _user!,
+        measurements: _getFilteredMeasurements(),
+        reportData: _reportData,
+        periodLabel: periodLabel,
+      );
+
+      // Esconder o indicador de progresso
+      _hideLoadingOverlay(loadingOverlay);
+
+      // Compartilhar o PDF
+      await pdfService.sharePdf(pdfPath);
+
+    } catch (e, stackTrace) {
+      // Log do erro
+      AppConstants.logError('Erro ao gerar PDF', e, stackTrace);
+
+      // Esconder o indicador de progresso
+      _hideLoadingOverlay(loadingOverlay);
+
+      // Mostrar mensagem de erro
+      _showErrorMessage('Ocorreu um erro ao gerar o PDF');
+    }
+  }
+
+// Mostra um overlay de carregamento
+  OverlayEntry _showLoadingOverlay(BuildContext context) {
+    final overlay = OverlayEntry(
+      builder: (context) => Container(
+        color: Colors.black.withOpacity(0.3),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(color: AppConstants.primaryColor),
+                const SizedBox(height: 15),
+                Text(
+                  'Gerando PDF...',
+                  style: TextStyle(
+                    color: AppConstants.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    Overlay.of(context).insert(overlay);
+    return overlay;
+  }
+
+// Esconde o overlay de carregamento
+  void _hideLoadingOverlay(OverlayEntry overlay) {
+    overlay.remove();
+  }
+
+// Mostra mensagem de erro
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppConstants.dangerColor,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 }
