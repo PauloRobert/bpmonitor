@@ -240,13 +240,14 @@ class _EditMeasurementScreenState extends State<EditMeasurementScreen>
         _selectedTime.minute,
       );
 
+      // ✅ CORRIGIDO: Remover updatedAt que não existe no modelo
       final updatedMeasurement = widget.measurement.copyWith(
         systolic: int.parse(_systolicController.text),
         diastolic: int.parse(_diastolicController.text),
         heartRate: int.parse(_heartRateController.text),
         measuredAt: measuredAt,
         notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
-        updatedAt: DateTime.now(),
+        // updatedAt: DateTime.now(), ← REMOVIDO - não existe no modelo
       );
 
       await db.updateMeasurement(updatedMeasurement);
@@ -261,11 +262,11 @@ class _EditMeasurementScreenState extends State<EditMeasurementScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Row(
+            content: const Row(
               children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 8),
-                Text(AppConstants.measurementUpdatedSuccess),
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Medição atualizada com sucesso!'),
               ],
             ),
             backgroundColor: AppConstants.successColor,
@@ -436,7 +437,7 @@ class _EditMeasurementScreenState extends State<EditMeasurementScreen>
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      color: AppConstants.warningColor.withOpacity(0.1),
+                      color: AppConstants.warningColor.withValues(alpha: 0.1),
                       child: Row(
                         children: [
                           Icon(Icons.edit, size: 16, color: AppConstants.warningColor),
@@ -540,7 +541,7 @@ class _EditMeasurementScreenState extends State<EditMeasurementScreen>
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: original.categoryColor.withOpacity(0.1),
+                color: original.categoryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -806,7 +807,7 @@ class _EditMeasurementScreenState extends State<EditMeasurementScreen>
 
     return Card(
       elevation: 1,
-      color: preview.categoryColor.withOpacity(0.05),
+      color: preview.categoryColor.withValues(alpha: 0.05),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -829,9 +830,9 @@ class _EditMeasurementScreenState extends State<EditMeasurementScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: preview.categoryColor.withOpacity(0.1),
+                color: preview.categoryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: preview.categoryColor.withOpacity(0.3)),
+                border: Border.all(color: preview.categoryColor.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -877,7 +878,7 @@ class _EditMeasurementScreenState extends State<EditMeasurementScreen>
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),

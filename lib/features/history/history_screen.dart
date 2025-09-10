@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-// REMOVIDO: import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_service.dart';
 import '../../shared/models/measurement_model.dart';
+import '../measurements/edit_measurement_screen.dart'; // NOVA IMPORTAÇÃO
 import 'dart:math';
 
 abstract class HistoryScreenController {
@@ -130,21 +130,64 @@ class _HistoryScreenState extends State<HistoryScreen>
     });
   }
 
-  void _editMeasurement(MeasurementModel measurement) {
-    // TODO: Navegar para tela de edição
+  // ✅ NOVA FUNÇÃO: Navegar para edição
+  void _editMeasurement(MeasurementModel measurement) async {
+    AppConstants.logNavigation('HistoryScreen', 'EditMeasurementScreen');
+
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => EditMeasurementScreen(measurement: measurement),
+      ),
+    );
+
+    if (result == true) {
+      _loadMeasurements(); // Recarregar dados após edição
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.refresh, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('Dados atualizados!'),
+              ],
+            ),
+            backgroundColor: AppConstants.successColor,
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _deleteMeasurement(MeasurementModel measurement) async {
-    final confirmed = await _showDeleteDialog();
+    final confirmed = await _showDeleteDialog(measurement);
     if (confirmed == true) {
       try {
         await db.deleteMeasurement(measurement.id!);
         _loadMeasurements();
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Medição removida com sucesso'),
-              backgroundColor: Colors.green,
+            SnackBar(
+              content: const Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Medição removida com sucesso'),
+                ],
+              ),
+              backgroundColor: AppConstants.successColor,
+              behavior: SnackBarBehavior.floating,
+              action: SnackBarAction(
+                label: 'Desfazer',
+                textColor: Colors.white,
+                onPressed: () {
+                  // TODO: Implementar desfazer (opcional)
+                },
+              ),
             ),
           );
         }
@@ -153,8 +196,15 @@ class _HistoryScreenState extends State<HistoryScreen>
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Erro ao remover medição'),
-              backgroundColor: AppConstants.secondaryColor,
+              content: Row(
+                children: [
+                  Icon(Icons.error, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Erro ao remover medição'),
+                ],
+              ),
+              backgroundColor: AppConstants.dangerColor,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }
@@ -162,20 +212,74 @@ class _HistoryScreenState extends State<HistoryScreen>
     }
   }
 
-  Future<bool?> _showDeleteDialog() async {
+  // ✅ MELHORADO: Dialog de confirmação mais informativo
+  Future<bool?> _showDeleteDialog(MeasurementModel measurement) async {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirmar exclusão'),
-        content: const Text('Tem certeza que deseja remover esta medição?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.delete_forever, color: AppConstants.dangerColor),
+            const SizedBox(width: 8),
+            const Text('Confirmar exclusão'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Tem certeza que deseja remover esta medição?'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    '${measurement.systolic}/${measurement.diastolic}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('${measurement.heartRate} bpm'),
+                  const Spacer(),
+                  Text(
+                    measurement.formattedDate,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppConstants.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Esta ação não pode ser desfeita.',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppConstants.textSecondary,
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cancelar'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppConstants.dangerColor,
+            ),
             child: const Text('Remover'),
           ),
         ],
@@ -196,6 +300,7 @@ class _HistoryScreenState extends State<HistoryScreen>
           fontSize: 18,
           fontWeight: FontWeight.w600,
         ),
+        automaticallyImplyLeading: false,
         bottom: TabBar(
           controller: _tabController,
           labelColor: AppConstants.primaryColor,
@@ -281,7 +386,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     if (_selectedPeriod == 'all') return const SizedBox.shrink();
     return Container(
       padding: const EdgeInsets.all(16),
-      color: AppConstants.primaryColor.withOpacity(0.05),
+      color: AppConstants.primaryColor.withValues(alpha: 0.05),
       child: Row(
         children: [
           Icon(Icons.filter_list, color: AppConstants.primaryColor, size: 16),
@@ -299,122 +404,289 @@ class _HistoryScreenState extends State<HistoryScreen>
     );
   }
 
+  // ✅ MELHORADO: Card de medição mais informativo e visual
   Widget _buildMeasurementCard(MeasurementModel measurement, int index) {
     return Card(
-      elevation: 1,
-      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+        borderRadius: BorderRadius.circular(16),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: Container(
-          width: 4,
-          height: double.infinity,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _editMeasurement(measurement), // ✅ NOVO: Tap para editar
+        child: Container(
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: measurement.categoryColor,
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: measurement.categoryColor.withValues(alpha: 0.2),
+              width: 1,
+            ),
           ),
-        ),
-        title: Row(
-          children: [
-            Text(
-              '${measurement.systolic}/${measurement.diastolic}',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppConstants.textPrimary,
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  // Indicador visual da categoria
+                  Container(
+                    width: 4,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: measurement.categoryColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+
+                  // Conteúdo principal
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              '${measurement.systolic}/${measurement.diastolic}',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppConstants.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: measurement.categoryColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: measurement.categoryColor.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Text(
+                                measurement.categoryName,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: measurement.categoryColor,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+
+                        Row(
+                          children: [
+                            Icon(Icons.favorite, size: 16, color: Colors.red.shade400),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${measurement.heartRate} bpm',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppConstants.textSecondary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Icon(Icons.schedule, size: 16, color: AppConstants.textSecondary),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${measurement.formattedDate} às ${measurement.formattedTime}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppConstants.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        if (measurement.notes != null && measurement.notes!.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.note, size: 14, color: AppConstants.textSecondary),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    measurement.notes!,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppConstants.textSecondary,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  // Menu de ações
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, color: AppConstants.textSecondary),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    itemBuilder: (context) => <PopupMenuEntry<String>>[
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, size: 18, color: AppConstants.primaryColor),
+                            SizedBox(width: 8),
+                            Text('Editar'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'duplicate',
+                        child: Row(
+                          children: [
+                            Icon(Icons.copy, size: 18, color: AppConstants.textSecondary),
+                            SizedBox(width: 8),
+                            Text('Duplicar'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuDivider(),
+                      PopupMenuItem<String>(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete, size: 18, color: AppConstants.dangerColor),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Remover',
+                              style: TextStyle(color: AppConstants.dangerColor),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'edit':
+                          _editMeasurement(measurement);
+                          break;
+                        case 'duplicate':
+                          _duplicateMeasurement(measurement);
+                          break;
+                        case 'delete':
+                          _deleteMeasurement(measurement);
+                          break;
+                      }
+                    },
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: measurement.categoryColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                measurement.categoryName,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: measurement.categoryColor,
+
+              // ✅ NOVO: Alertas médicos se houver
+              if (measurement.medicalAlerts.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: measurement.categoryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: measurement.categoryColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: measurement.categoryColor,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          measurement.medicalAlerts.first,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: measurement.categoryColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ),
-          ],
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              '❤️ ${measurement.heartRate} bpm',
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppConstants.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '📅 ${measurement.formattedDate} às ${measurement.formattedTime}',
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppConstants.textSecondary,
-              ),
-            ),
-            if (measurement.notes != null && measurement.notes!.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                '📝 ${measurement.notes}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppConstants.textSecondary,
-                  fontStyle: FontStyle.italic,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+              ],
             ],
-          ],
-        ),
-        trailing: PopupMenuButton(
-          icon: const Icon(Icons.more_vert, color: AppConstants.textSecondary),
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'edit',
-              child: Row(
-                children: [
-                  Icon(Icons.edit, size: 16),
-                  SizedBox(width: 8),
-                  Text('Editar'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete, size: 16, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Remover', style: TextStyle(color: Colors.red)),
-                ],
-              ),
-            ),
-          ],
-          onSelected: (value) {
-            if (value == 'edit') _editMeasurement(measurement);
-            else if (value == 'delete') _deleteMeasurement(measurement);
-          },
+          ),
         ),
       ),
     );
   }
 
+  // ✅ NOVA FUNÇÃO: Duplicar medição
+  void _duplicateMeasurement(MeasurementModel measurement) async {
+    try {
+      final duplicated = measurement.copyWith(
+        id: null, // Remove ID para criar nova
+        measuredAt: DateTime.now(),
+        createdAt: DateTime.now(),
+      );
+
+      await db.insertMeasurement(duplicated);
+      _loadMeasurements();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.content_copy, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Medição duplicada com sucesso'),
+              ],
+            ),
+            backgroundColor: AppConstants.successColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      AppConstants.logError('Erro ao duplicar medição', e, stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Erro ao duplicar medição'),
+              ],
+            ),
+            backgroundColor: AppConstants.dangerColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildLoadingIndicator() {
     return const Padding(
       padding: EdgeInsets.all(16),
-      child: Center(child: CircularProgressIndicator(color: AppConstants.primaryColor)),
+      child: Center(
+        child: CircularProgressIndicator(color: AppConstants.primaryColor),
+      ),
     );
   }
 
@@ -425,8 +697,19 @@ class _HistoryScreenState extends State<HistoryScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history, size: 80, color: AppConstants.textSecondary.withOpacity(0.5)),
-            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppConstants.textSecondary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.history,
+                size: 64,
+                color: AppConstants.textSecondary.withValues(alpha: 0.5),
+              ),
+            ),
+            const SizedBox(height: 20),
             Text(
               _selectedPeriod == 'all'
                   ? 'Nenhuma medição registrada'
@@ -453,7 +736,6 @@ class _HistoryScreenState extends State<HistoryScreen>
     );
   }
 
-  // CORREÇÃO: Chart placeholder otimizado
   Widget _buildChartView() {
     if (_filteredMeasurements.isEmpty) {
       return Center(
@@ -468,7 +750,6 @@ class _HistoryScreenState extends State<HistoryScreen>
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
-          // Estatísticas simples no lugar do gráfico
           _buildStatsCards(),
           const SizedBox(height: 24),
           Expanded(
@@ -479,7 +760,7 @@ class _HistoryScreenState extends State<HistoryScreen>
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: AppConstants.primaryColor.withOpacity(0.1),
+                      color: AppConstants.primaryColor.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
