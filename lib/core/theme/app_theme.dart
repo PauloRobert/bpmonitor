@@ -1,8 +1,7 @@
-// core/theme/app_theme.dart
+// core/theme/app_theme.dart (CORRIGIDO)
 import 'package:flutter/material.dart';
 import 'package:bp_monitor/core/remote_config/remote_config_service.dart';
 import 'package:bp_monitor/core/constants/app_constants.dart';
-import 'package:bp_monitor/core/di/injection_container.dart';
 
 class AppTheme {
   final RemoteConfigService _remoteConfig;
@@ -58,16 +57,15 @@ class AppTheme {
         seedColor: primaryColor,
         primary: primaryColor,
         secondary: secondaryColor,
-        background: backgroundColor,
         surface: cardColor,
         onPrimary: Colors.white,
         onSecondary: Colors.white,
-        onBackground: textPrimaryColor,
         onSurface: textPrimaryColor,
         brightness: Brightness.light,
       ),
       scaffoldBackgroundColor: backgroundColor,
-      cardTheme: CardTheme(
+      // CORREÇÃO: CardTheme → CardThemeData
+      cardTheme: CardThemeData(
         color: cardColor,
         elevation: 1,
         shape: RoundedRectangleBorder(

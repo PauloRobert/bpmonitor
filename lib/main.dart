@@ -1,10 +1,12 @@
-// main.dart (ATUALIZADO)
+// main.dart (CORRIGIDO)
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:bp_monitor/core/di/injection_container.dart' as di;
 import 'package:bp_monitor/core/sync/sync_service.dart';
+import 'package:bp_monitor/core/remote_config/remote_config_service.dart';
 import 'package:bp_monitor/presentation/app.dart';
+import 'package:bp_monitor/firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,14 +18,17 @@ void main() async {
   ]);
 
   // Inicializar Firebase
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   // Inicializar injeção de dependências
   await di.init();
 
   // Iniciar sincronização periódica
-  final syncInterval = Duration(minutes: di.sl<RemoteConfigService>().getInt('sync_interval_minutes'));
-  di.sl<SyncService>().startPeriodicSync(interval: syncInterval);
+  final remoteConfig = di.sl<RemoteConfigService>();
+  final syncInterval = Duration(minutes: remoteConfig.getInt('sync_interval_minutes'));
+  di.sl<SyncService>().startPeriodicSync();
 
   runApp(const BPMonitorApp());
 }

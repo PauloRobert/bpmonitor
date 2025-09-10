@@ -1,4 +1,3 @@
-// core/sync/sync_service.dart
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -64,7 +63,6 @@ class SyncService {
       final isConnected = await _networkInfo.isConnected;
       if (!isConnected) {
         _logger.d('Sem conexão, sincronização adiada');
-        _isSyncing = false;
         return false;
       }
 
@@ -72,7 +70,6 @@ class SyncService {
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
         _logger.d('Usuário não autenticado, sincronização cancelada');
-        _isSyncing = false;
         return false;
       }
 

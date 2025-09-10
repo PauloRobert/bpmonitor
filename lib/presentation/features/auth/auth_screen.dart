@@ -1,9 +1,9 @@
-// presentation/features/auth/auth_screen.dart (corrigido)
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:bp_monitor/core/constants/app_constants.dart';
 import 'package:bp_monitor/core/di/injection_container.dart';
 import 'package:bp_monitor/core/localization/app_strings.dart';
+import 'package:bp_monitor/core/theme/app_theme.dart';
 import 'package:bp_monitor/presentation/features/auth/bloc/auth_bloc.dart';
 import 'package:bp_monitor/presentation/features/auth/bloc/auth_event.dart';
 import 'package:bp_monitor/presentation/features/auth/bloc/auth_state.dart';
@@ -14,25 +14,32 @@ class AuthScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final strings = sl<AppStrings>();
+    final theme = sl<AppTheme>();
 
     return BlocProvider(
       create: (_) => sl<AuthBloc>()..add(CheckAuthStatusEvent()),
       child: Scaffold(
-        backgroundColor: AppConstants.backgroundColor,
+        backgroundColor: theme.backgroundColor,
         body: BlocConsumer<AuthBloc, AuthState>(
-          // Adicionar o listener
           listener: (context, state) {
             if (state is Authenticated) {
               Navigator.of(context).pushReplacementNamed(AppConstants.homeRoute);
             } else if (state is AuthError) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(state.message)),
+                SnackBar(
+                  content: Text(state.message),
+                  backgroundColor: theme.secondaryColor,
+                ),
               );
             }
           },
           builder: (context, state) {
             if (state is AuthLoading) {
-              return const Center(child: CircularProgressIndicator());
+              return Center(
+                child: CircularProgressIndicator(
+                  color: theme.primaryColor,
+                ),
+              );
             }
 
             return SafeArea(
@@ -42,32 +49,40 @@ class AuthScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.favorite,
-                      size: 80,
-                      color: AppConstants.primaryColor,
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        gradient: theme.logoGradient,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.favorite,
+                        size: 40,
+                        color: Colors.white,
+                      ),
                     ),
                     const SizedBox(height: 24),
                     Text(
                       strings.appName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
-                        color: AppConstants.textPrimary,
+                        color: theme.textPrimaryColor,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
                     Text(
                       strings.appDescription,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
-                        color: AppConstants.textSecondary,
+                        color: theme.textSecondaryColor,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 48),
-                    _buildGoogleSignInButton(context, strings),
+                    _buildGoogleSignInButton(context, strings, theme),
                   ],
                 ),
               ),
@@ -78,12 +93,12 @@ class AuthScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildGoogleSignInButton(BuildContext context, AppStrings strings) {
+  Widget _buildGoogleSignInButton(BuildContext context, AppStrings strings, AppTheme theme) {
     return ElevatedButton(
       onPressed: () => context.read<AuthBloc>().add(SignInWithGoogleEvent()),
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white,
-        foregroundColor: AppConstants.textPrimary,
+        foregroundColor: theme.textPrimaryColor,
         padding: const EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -94,9 +109,19 @@ class AuthScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.network(
-            'https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg',
+          // Usando um ícone local ao invés de carregar da web
+          Container(
+            width: 24,
             height: 24,
+            decoration: const BoxDecoration(
+              color: Colors.blue,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.g_mobiledata,
+              color: Colors.white,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Text(

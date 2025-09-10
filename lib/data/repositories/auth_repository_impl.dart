@@ -1,4 +1,4 @@
-// data/repositories/auth_repository_impl.dart
+// data/repositories/auth_repository_impl.dart (MIGRAÇÃO CORRETA PARA v7)
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -17,6 +17,10 @@ class AuthRepositoryImpl implements AuthRepository {
   final AppLogger _logger;
   final AppStrings _strings;
 
+  // Manual state management (required in v7)
+  GoogleSignInAccount? _currentUser;
+  bool _isGoogleSignInInitialized = false;
+
   AuthRepositoryImpl({
     required FirebaseAuth firebaseAuth,
     required GoogleSignIn googleSignIn,
@@ -29,6 +33,20 @@ class AuthRepositoryImpl implements AuthRepository {
         _logger = logger,
         _strings = strings;
 
+  /// Ensure Google Sign-In is initialized before use
+  Future<void> _ensureGoogleSignInInitialized() async {
+    if (!_isGoogleSignInInitialized) {
+      try {
+        await _googleSignIn.initialize();
+        _isGoogleSignInInitialized = true;
+        _logger.d('Google Sign-In inicializado com sucesso');
+      } catch (e) {
+        _logger.e('Falha ao inicializar Google Sign-In', e);
+        throw Exception('Falha na inicialização do Google Sign-In: $e');
+      }
+    }
+  }
+
   @override
   Future<bool> isAuthenticated() async {
     return _firebaseAuth.currentUser != null;
@@ -37,26 +55,31 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, UserEntity>> signInWithGoogle() async {
     try {
-      // Iniciar fluxo de login
-      final googleUser = await _googleSignIn.attemptLightweightAuthentication();
+      await _ensureGoogleSignInInitialized();
 
-      if (googleUser == null) {
-        return Left(AuthFailure(_strings.loginCanceled));
-      }
-
-      // Obter tokens de acesso via authorizationForScopes
-      final authToken = await _googleSignIn.authorizationForScopes(
-        scopes: ['email', 'profile'],
+      // CORREÇÃO: Usar authenticate() ao invés de signIn()
+      final GoogleSignInAccount googleUser = await _googleSignIn.authenticate(
+        scopeHint: ['email', 'profile'],
       );
 
-      if (authToken == null) {
+      // Update manual state management
+      _currentUser = googleUser;
+
+      // CORREÇÃO: authentication agora é síncrono (não await)
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+
+      // Get authorization for Firebase scopes
+      final authClient = _googleSignIn.authorizationClient;
+      final authorization = await authClient.authorizationForScopes(['email', 'profile']);
+
+      if (authorization == null) {
         return Left(AuthFailure(_strings.loginError));
       }
 
-      // Criar credencial do Firebase
+      // Criar credencial do Firebase usando authorization
       final credential = GoogleAuthProvider.credential(
-        accessToken: authToken.accessToken,
-        idToken: authToken.idToken,
+        accessToken: authorization.accessToken,
+        idToken: googleAuth.idToken,
       );
 
       // Login no Firebase
@@ -93,9 +116,12 @@ class AuthRepositoryImpl implements AuthRepository {
         await _firestore.collection('users').doc(user.uid).set(newUser.toJson());
         return Right(newUser.toEntity());
       }
+    } on GoogleSignInException catch (e) {
+      _logger.e('Google Sign-In error: ${e.code.name}', e);
+      return Left(AuthFailure(_googleSignInExceptionToMessage(e)));
     } catch (e, stackTrace) {
       _logger.e('Erro no login com Google', e, stackTrace);
-      return Left(AuthFailure(e.toString()));
+      return Left(AuthFailure('Erro no login: ${e.toString()}'));
     }
   }
 
@@ -104,10 +130,14 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       await _googleSignIn.signOut();
       await _firebaseAuth.signOut();
+
+      // Clear manual state
+      _currentUser = null;
+
       return const Right(null);
     } catch (e, stackTrace) {
       _logger.e('Erro ao fazer logout', e, stackTrace);
-      return Left(AuthFailure(e.toString()));
+      return Left(AuthFailure('Erro ao fazer logout: ${e.toString()}'));
     }
   }
 
@@ -130,7 +160,7 @@ class AuthRepositoryImpl implements AuthRepository {
       return Right(UserModel.fromFirestore(userData, firebaseUser.uid).toEntity());
     } catch (e, stackTrace) {
       _logger.e('Erro ao obter usuário atual', e, stackTrace);
-      return Left(AuthFailure(e.toString()));
+      return Left(AuthFailure('Erro ao obter usuário: ${e.toString()}'));
     }
   }
 
@@ -146,12 +176,56 @@ class AuthRepositoryImpl implements AuthRepository {
       });
 
       final updatedUserDoc = await _firestore.collection('users').doc(user.id).get();
-      final updatedUserData = updatedUserDoc.data() as Map<String, dynamic>;
 
+      if (!updatedUserDoc.exists) {
+        return Left(AuthFailure('Usuário não encontrado após atualização'));
+      }
+
+      final updatedUserData = updatedUserDoc.data() as Map<String, dynamic>;
       return Right(UserModel.fromFirestore(updatedUserData, user.id).toEntity());
     } catch (e, stackTrace) {
       _logger.e('Erro ao atualizar perfil', e, stackTrace);
-      return Left(AuthFailure(e.toString()));
+      return Left(AuthFailure('Erro ao atualizar perfil: ${e.toString()}'));
+    }
+  }
+
+  /// Silent authentication attempt
+  Future<GoogleSignInAccount?> _attemptSilentSignIn() async {
+    await _ensureGoogleSignInInitialized();
+    try {
+      // CORREÇÃO: Usar attemptLightweightAuthentication() ao invés de signInSilently()
+      final result = _googleSignIn.attemptLightweightAuthentication();
+
+      // Handle both sync and async returns
+      if (result is Future<GoogleSignInAccount?>) {
+        return await result;
+      } else {
+        return result as GoogleSignInAccount?;
+      }
+    } catch (error) {
+      _logger.w('Silent sign-in failed', error);
+      return null;
+    }
+  }
+
+  /// Convert GoogleSignInException to user-friendly message
+  String _googleSignInExceptionToMessage(GoogleSignInException exception) {
+    switch (exception.code.name) {
+      case 'canceled':
+        return _strings.loginCanceled;
+      case 'interrupted':
+        return 'Login foi interrompido. Tente novamente.';
+      case 'clientConfigurationError':
+        return 'Erro de configuração. Contate o suporte.';
+      case 'providerConfigurationError':
+        return 'Google Sign-In indisponível. Tente mais tarde.';
+      case 'uiUnavailable':
+        return 'Interface de login indisponível. Tente mais tarde.';
+      case 'userMismatch':
+        return 'Problema com sua conta. Saia e tente novamente.';
+      case 'unknownError':
+      default:
+        return _strings.loginError;
     }
   }
 }

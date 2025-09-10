@@ -1,20 +1,43 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:equatable/equatable.dart';
 
-part 'user_entity.freezed.dart';
+class UserEntity extends Equatable {
+  final String id;
+  final String name;
+  final String birthDate;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final String? photoUrl;
+  final String? email;
 
-@freezed
-class UserEntity with _$UserEntity {
-  const factory UserEntity({
-    required String id,
-    required String name,
-    required String birthDate,
-    required DateTime createdAt,
-    required DateTime updatedAt,
+  const UserEntity({
+    required this.id,
+    required this.name,
+    required this.birthDate,
+    required this.createdAt,
+    required this.updatedAt,
+    this.photoUrl,
+    this.email,
+  });
+
+  UserEntity copyWith({
+    String? id,
+    String? name,
+    String? birthDate,
+    DateTime? createdAt,
+    DateTime? updatedAt,
     String? photoUrl,
     String? email,
-  }) = _UserEntity;
-
-  const UserEntity._();
+  }) {
+    return UserEntity(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      birthDate: birthDate ?? this.birthDate,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      photoUrl: photoUrl ?? this.photoUrl,
+      email: email ?? this.email,
+    );
+  }
 
   int get age {
     try {
@@ -34,4 +57,15 @@ class UserEntity with _$UserEntity {
       return 0;
     }
   }
+
+  @override
+  List<Object?> get props => [
+    id,
+    name,
+    birthDate,
+    createdAt,
+    updatedAt,
+    photoUrl,
+    email,
+  ];
 }
