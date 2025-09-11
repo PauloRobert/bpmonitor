@@ -1,167 +1,71 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../shared/models/measurement_model.dart';
-import 'dart:math';
 
-class MeasurementsChartTab extends StatelessWidget {
+class MeasurementsListTab extends StatelessWidget {
   final List<MeasurementModel> measurements;
+  final Function(String) onPeriodChange;
+  final Function(MeasurementModel) onEditMeasurement;
+  final Function(MeasurementModel) onDeleteMeasurement;
+  final Function() onLoadMeasurements;
+  final String selectedPeriod;
+  final Map<String, String> periods;
 
-  const MeasurementsChartTab({
+  const MeasurementsListTab({
     super.key,
     required this.measurements,
+    required this.onPeriodChange,
+    required this.onEditMeasurement,
+    required this.onDeleteMeasurement,
+    required this.onLoadMeasurements,
+    required this.selectedPeriod,
+    required this.periods,
   });
 
   @override
   Widget build(BuildContext context) {
     if (measurements.isEmpty) {
-      return Center(
-        child: Text(
-          'Nenhuma medição para exibir',
-          style: TextStyle(color: AppConstants.textSecondary),
-        ),
+      return const Center(
+        child: Text('Nenhuma medição encontrada'),
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _buildStatsCards(),
-          const SizedBox(height: 24),
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: AppConstants.primaryColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.show_chart,
-                      size: 48,
-                      color: AppConstants.primaryColor,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Gráficos Interativos',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppConstants.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Em desenvolvimento',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppConstants.textSecondary,
-                    ),
-                  ),
-                ],
+    return ListView.builder(
+      itemCount: measurements.length,
+      itemBuilder: (context, index) {
+        final measurement = measurements[index];
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: ListTile(
+            title: Text(
+              '${measurement.systolic}/${measurement.diastolic} mmHg',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: AppConstants.textPrimary,
               ),
+            ),
+            subtitle: Text(
+              '${measurement.formattedDate} • Batimentos: ${measurement.heartRate}',
+              style: const TextStyle(
+                color: AppConstants.textSecondary,
+              ),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  onPressed: () => onEditMeasurement(measurement),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () => onDeleteMeasurement(measurement),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStatsCards() {
-    if (measurements.isEmpty) return const SizedBox.shrink();
-    final data = measurements;
-    final systolicAvg = data.map((m) => m.systolic).reduce((a, b) => a + b) / data.length;
-    final diastolicAvg = data.map((m) => m.diastolic).reduce((a, b) => a + b) / data.length;
-    final hrAvg = data.map((m) => m.heartRate).reduce((a, b) => a + b) / data.length;
-    final systolicMax = data.map((m) => m.systolic).reduce(max);
-    final systolicMin = data.map((m) => m.systolic).reduce(min);
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                'Média',
-                '${systolicAvg.round()}/${diastolicAvg.round()}',
-                'mmHg',
-                Colors.blue,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                'Batimentos',
-                '${hrAvg.round()}',
-                'bpm',
-                Colors.red,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildStatCard(
-                'Máxima',
-                '$systolicMax',
-                'mmHg',
-                Colors.orange,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildStatCard(
-                'Mínima',
-                '$systolicMin',
-                'mmHg',
-                Colors.green,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(String label, String value, String unit, Color color) {
-    return Card(
-      elevation: 1,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: AppConstants.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            Text(
-              unit,
-              style: TextStyle(
-                fontSize: 10,
-                color: AppConstants.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

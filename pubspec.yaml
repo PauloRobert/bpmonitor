@@ -23,7 +23,7 @@ dependencies:
   shared_preferences: ^2.2.3
 
   #gráficos
-  # fl_chart: ^0.71.0
+  fl_chart: ^1.1.0
   intl: ^0.20.2
   pdf: ^3.10.4
   path_provider: ^2.1.1

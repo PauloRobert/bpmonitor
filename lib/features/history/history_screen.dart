@@ -3,8 +3,8 @@ import '../../core/constants/app_constants.dart';
 import '../../core/database/database_service.dart';
 import '../../shared/models/measurement_model.dart';
 import '../../features/measurements/edit_measurement_screen.dart';
-import '../../features/measurements/measurements_list_tab.dart';
-import '../../features/measurements/measurements_chart_tab.dart';
+import '../../features/measurements/measurements_list_tab.dart' as list_tab;
+import '../../features/measurements/measurements_chart_tab.dart' as chart_tab;
 
 abstract class HistoryScreenController {
   void loadMeasurements();
@@ -26,6 +26,7 @@ class _HistoryScreenState extends State<HistoryScreen>
   List<MeasurementModel> _filteredMeasurements = [];
   bool _isLoading = true;
   String _selectedPeriod = 'all';
+  bool _showHeartRate = true;
 
   final Map<String, String> _periods = {
     'all': 'Todos',
@@ -215,7 +216,7 @@ class _HistoryScreenState extends State<HistoryScreen>
           : TabBarView(
         controller: _tabController,
         children: [
-          MeasurementsListTab(
+          list_tab.MeasurementsListTab(
             measurements: _filteredMeasurements,
             onPeriodChange: _changePeriod,
             onEditMeasurement: _editMeasurement,
@@ -224,7 +225,13 @@ class _HistoryScreenState extends State<HistoryScreen>
             selectedPeriod: _selectedPeriod,
             periods: _periods,
           ),
-          MeasurementsChartTab(measurements: _filteredMeasurements),
+          chart_tab.MeasurementsChartTab(
+            measurements: _filteredMeasurements,
+            showHeartRate: _showHeartRate,
+            onToggleHeartRate: (val) {
+              setState(() => _showHeartRate = val);
+            },
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
