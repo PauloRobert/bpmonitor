@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_service.dart';
 import '../../shared/models/measurement_model.dart';
+import '../../features/measurements/edit_measurement_screen.dart';
 import 'dart:math';
 
 abstract class HistoryScreenController {
@@ -130,9 +131,19 @@ class _HistoryScreenState extends State<HistoryScreen>
     });
   }
 
-  void _editMeasurement(MeasurementModel measurement) {
-    // TODO: Navegar para tela de edição
+  Future<void> _editMeasurement(MeasurementModel measurement) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => EditMeasurementScreen(measurement: measurement),
+      ),
+    );
+
+    if (result == true) {
+      // Recarrega as medições após a edição
+      _loadMeasurements();
+    }
   }
+
 
   Future<void> _deleteMeasurement(MeasurementModel measurement) async {
     final confirmed = await _showDeleteDialog();

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_service.dart';
 import '../../shared/models/user_model.dart';
@@ -11,11 +10,9 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen>
-    with SingleTickerProviderStateMixin {
-  final db = DatabaseService.instance;
-  final _formKey = GlobalKey<FormState>();
-
+class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
+  final DatabaseService db = DatabaseService.instance;
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _birthDateController = TextEditingController();
 
@@ -24,7 +21,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _isEditing = false;
   bool _isSaving = false;
 
-  // Animation
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -42,21 +38,19 @@ class _ProfileScreenState extends State<ProfileScreen>
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutQuart,
-    ));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeOutQuart,
+      ),
+    );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.2),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeOutQuart,
-    ));
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeOutQuart,
+      ),
+    );
   }
 
   @override
@@ -70,7 +64,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _loadUserData() async {
     try {
       setState(() => _isLoading = true);
-
       final user = await db.getUser();
       if (user != null) {
         setState(() {
@@ -88,6 +81,8 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _selectBirthDate() async {
+    if (!_isEditing) return;
+
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _currentUser != null
@@ -128,7 +123,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
 
       await db.updateUser(updatedUser);
-
       setState(() {
         _currentUser = updatedUser;
         _isEditing = false;
@@ -140,6 +134,16 @@ class _ProfileScreenState extends State<ProfileScreen>
     } finally {
       setState(() => _isSaving = false);
     }
+  }
+
+  void _toggleEdit() {
+    setState(() {
+      if (_isEditing) {
+        _nameController.text = _currentUser!.name;
+        _birthDateController.text = _currentUser!.birthDate;
+      }
+      _isEditing = !_isEditing;
+    });
   }
 
   void _showSuccess(String message) {
@@ -174,94 +178,23 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  void _toggleEdit() {
-    setState(() {
-      if (_isEditing) {
-        // Cancelar edição - restaurar valores originais
-        _nameController.text = _currentUser!.name;
-        _birthDateController.text = _currentUser!.birthDate;
-      }
-      _isEditing = !_isEditing;
-    });
-  }
-
-  Future<void> _showDeleteDataDialog() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.warning, color: AppConstants.dangerColor),
-            const SizedBox(width: 8),
-            const Text('Excluir todos os dados?'),
-          ],
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Esta ação irá remover permanentemente:',
-              style: TextStyle(fontWeight: FontWeight.w500),
-            ),
-            SizedBox(height: 12),
-            Text('• Todas as medições registradas'),
-            Text('• Dados do perfil'),
-            Text('• Histórico completo'),
-            SizedBox(height: 12),
-            Text(
-              'Esta ação não pode ser desfeita.',
-              style: TextStyle(
-                color: AppConstants.dangerColor,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppConstants.dangerColor,
-            ),
-            child: const Text('Excluir Tudo'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        await db.clearAllData();
-        if (mounted) {
-          _showSuccess('Todos os dados foram removidos');
-          // Recarregar dados
-          _loadUserData();
-        }
-      } catch (e) {
-        _showError('Erro ao excluir dados');
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryColor))
-          : _currentUser == null
-          ? _buildNoUserState()
-          : FadeTransition(
-        opacity: _fadeAnimation,
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: _buildProfileContent(),
+      body: SafeArea(
+        child: _isLoading
+            ? const Center(
+          child: CircularProgressIndicator(color: AppConstants.primaryColor),
+        )
+            : _currentUser == null
+            ? _buildNoUserState()
+            : FadeTransition(
+          opacity: _fadeAnimation,
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: _buildProfileContent(),
+          ),
         ),
       ),
     );
@@ -294,132 +227,112 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildProfileContent() {
-    return CustomScrollView(
-      slivers: [
-        // AppBar personalizada
-        SliverAppBar(
-          expandedHeight: 200,
-          floating: false,
-          pinned: true,
-          backgroundColor: AppConstants.primaryColor,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          flexibleSpace: FlexibleSpaceBar(
-            background: Container(
-              decoration: const BoxDecoration(
-                gradient: AppConstants.splashGradient,
-              ),
-              child: SafeArea(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 40),
-                    // Avatar com iniciais
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: Center(
-                        child: Text(
-                          _currentUser!.name.isNotEmpty
-                              ? _currentUser!.name[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+    return Column(
+      children: [
+        Expanded(
+          child: CustomScrollView(
+            slivers: [
+              _buildSliverAppBar(),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        _buildPersonalInfoCard(),
+                        const SizedBox(height: 16),
+                        _buildStatisticsCard(),
+                        const SizedBox(height: 16),
+                        _buildHealthCard(),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _currentUser!.name,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${_currentUser!.age} anos',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
-          actions: [
-            IconButton(
-              icon: Icon(
-                _isEditing ? Icons.close : Icons.edit,
-                color: Colors.white,
-              ),
-              onPressed: _toggleEdit,
-            ),
-          ],
-        ),
-
-        // Conteúdo principal
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: SingleChildScrollView(
-              physics: const NeverScrollableScrollPhysics(), // evita scroll duplo
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    _buildPersonalInfoCard(),
-                    const SizedBox(height: 16),
-                    _buildStatisticsCard(),
-                    const SizedBox(height: 16),
-                    _buildHealthCard(),
-                    const SizedBox(height: 16),
-                    _buildActionsCard(),
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
-            ),
+            ],
           ),
         ),
-
-        // Botão de salvar sempre visível no final
-        if (_isEditing)
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _buildSaveButton(),
-                ],
-              ),
-            ),
-          ),
+        if (_isEditing) _buildSaveButtonSection(),
       ],
     );
   }
 
-
+  Widget _buildSliverAppBar() {
+    return SliverAppBar(
+      expandedHeight: 200,
+      pinned: true,
+      backgroundColor: AppConstants.primaryColor,
+      automaticallyImplyLeading: false,
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: const BoxDecoration(
+            gradient: AppConstants.splashGradient,
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 40),
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _currentUser!.name.isNotEmpty
+                          ? _currentUser!.name[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        fontSize: 36,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _currentUser!.name,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_currentUser!.age} anos',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: Icon(
+            _isEditing ? Icons.close : Icons.edit,
+            color: Colors.white,
+          ),
+          onPressed: _toggleEdit,
+        ),
+      ],
+    );
+  }
 
   Widget _buildPersonalInfoCard() {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -433,11 +346,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     color: AppConstants.primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(
-                    Icons.person,
-                    color: AppConstants.primaryColor,
-                    size: 20,
-                  ),
+                  child: Icon(Icons.person, color: AppConstants.primaryColor, size: 20),
                 ),
                 const SizedBox(width: 12),
                 const Text(
@@ -451,8 +360,6 @@ class _ProfileScreenState extends State<ProfileScreen>
               ],
             ),
             const SizedBox(height: 20),
-
-            // Campo Nome
             TextFormField(
               controller: _nameController,
               enabled: _isEditing,
@@ -464,24 +371,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                 fillColor: Colors.grey.shade50,
               ),
               validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Nome é obrigatório';
-                }
-                if (value.trim().length < 3) {
-                  return 'Nome muito curto';
-                }
+                if (value == null || value.trim().isEmpty) return 'Nome é obrigatório';
+                if (value.trim().length < 3) return 'Nome muito curto';
                 return null;
               },
             ),
-
             const SizedBox(height: 16),
-
-            // Campo Data de Nascimento
             TextFormField(
               controller: _birthDateController,
               enabled: _isEditing,
               readOnly: true,
-              onTap: _isEditing ? _selectBirthDate : null,
+              onTap: _selectBirthDate,
               decoration: InputDecoration(
                 labelText: 'Data de nascimento',
                 prefixIcon: const Icon(Icons.cake_outlined),
@@ -491,86 +391,68 @@ class _ProfileScreenState extends State<ProfileScreen>
                 fillColor: Colors.grey.shade50,
               ),
               validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Data de nascimento é obrigatória';
-                }
+                if (value == null || value.isEmpty) return 'Data de nascimento é obrigatória';
                 return null;
               },
             ),
-
-            // Botão salvar dentro do mesmo Card
-            if (_isEditing) ...[
-              const SizedBox(height: 24),
-              _buildSaveButton(),
-            ],
-
-            if (!_isEditing) ...[
-              const SizedBox(height: 16),
-              // Idade destacada
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      AppConstants.primaryColor.withOpacity(0.1),
-                      AppConstants.primaryColor.withOpacity(0.05),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppConstants.primaryColor.withOpacity(0.2),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppConstants.primaryColor,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.cake,
-                        color: Colors.white,
-                        size: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Idade atual',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppConstants.textSecondary,
-                          ),
-                        ),
-                        Text(
-                          '${_currentUser!.age} anos',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppConstants.primaryColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            if (!_isEditing) _buildAgeInfo(),
           ],
         ),
       ),
     );
   }
 
-
-
-
-
+  Widget _buildAgeInfo() {
+    return Column(
+      children: [
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppConstants.primaryColor.withOpacity(0.1),
+                AppConstants.primaryColor.withOpacity(0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppConstants.primaryColor.withOpacity(0.2)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppConstants.primaryColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.cake, color: Colors.white, size: 16),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Idade atual',
+                    style: TextStyle(fontSize: 12, color: AppConstants.textSecondary),
+                  ),
+                  Text(
+                    '${_currentUser!.age} anos',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppConstants.primaryColor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _buildStatisticsCard() {
     final createdDate = _currentUser!.createdAt;
@@ -578,9 +460,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     return Card(
       elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -594,11 +474,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     color: AppConstants.successColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(
-                    Icons.analytics,
-                    color: AppConstants.successColor,
-                    size: 20,
-                  ),
+                  child: Icon(Icons.analytics, color: AppConstants.successColor, size: 20),
                 ),
                 const SizedBox(width: 12),
                 const Text(
@@ -612,7 +488,6 @@ class _ProfileScreenState extends State<ProfileScreen>
               ],
             ),
             const SizedBox(height: 20),
-
             Row(
               children: [
                 Expanded(
@@ -634,14 +509,54 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
             _buildStatRow(
               Icons.update,
               'Última atualização',
               '${_currentUser!.updatedAt.day}/${_currentUser!.updatedAt.month}/${_currentUser!.updatedAt.year} às ${_currentUser!.updatedAt.hour}:${_currentUser!.updatedAt.minute.toString().padLeft(2, '0')}',
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthCard() {
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppConstants.dangerColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.favorite, color: AppConstants.dangerColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Saúde e Monitoramento',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _buildHealthTip(Icons.schedule, 'Meça sua pressão sempre no mesmo horário', 'Preferencialmente pela manhã, em jejum'),
+            const SizedBox(height: 12),
+            _buildHealthTip(Icons.self_improvement, 'Descanse 5 minutos antes da medição', 'Evite atividades físicas 30 min antes'),
+            const SizedBox(height: 12),
+            _buildHealthTip(Icons.medical_information, 'Compartilhe seus dados com seu médico', 'Use os relatórios para acompanhamento'),
           ],
         ),
       ),
@@ -660,20 +575,10 @@ class _ProfileScreenState extends State<ProfileScreen>
         children: [
           Icon(icon, color: color, size: 24),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
+          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppConstants.textSecondary,
-            ),
+            style: const TextStyle(fontSize: 12, color: AppConstants.textSecondary),
             textAlign: TextAlign.center,
           ),
         ],
@@ -689,82 +594,14 @@ class _ProfileScreenState extends State<ProfileScreen>
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(
-              fontSize: 14,
-              color: AppConstants.textSecondary,
-            ),
+            style: const TextStyle(fontSize: 14, color: AppConstants.textSecondary),
           ),
         ),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppConstants.textPrimary,
-          ),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppConstants.textPrimary),
         ),
       ],
-    );
-  }
-
-  Widget _buildHealthCard() {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppConstants.dangerColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.favorite,
-                    color: AppConstants.dangerColor,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Saúde e Monitoramento',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppConstants.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            _buildHealthTip(
-              Icons.schedule,
-              'Meça sua pressão sempre no mesmo horário',
-              'Preferencialmente pela manhã, em jejum',
-            ),
-            const SizedBox(height: 12),
-            _buildHealthTip(
-              Icons.self_improvement,
-              'Descanse 5 minutos antes da medição',
-              'Evite atividades físicas 30 min antes',
-            ),
-            const SizedBox(height: 12),
-            _buildHealthTip(
-              Icons.medical_information,
-              'Compartilhe seus dados com seu médico',
-              'Use os relatórios para acompanhamento',
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -787,88 +624,16 @@ class _ProfileScreenState extends State<ProfileScreen>
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppConstants.textPrimary,
-                ),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppConstants.textPrimary),
               ),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppConstants.textSecondary,
-                ),
+                style: const TextStyle(fontSize: 12, color: AppConstants.textSecondary),
               ),
             ],
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildActionsCard() {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppConstants.warningColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    Icons.settings,
-                    color: AppConstants.warningColor,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Ações',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppConstants.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            ListTile(
-              leading: Icon(Icons.backup, color: AppConstants.primaryColor),
-              title: const Text('Backup dos dados'),
-              subtitle: const Text('Em desenvolvimento'),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Funcionalidade em desenvolvimento')),
-                );
-              },
-            ),
-
-            const Divider(),
-
-            ListTile(
-              leading: Icon(Icons.delete_forever, color: AppConstants.dangerColor),
-              title: const Text('Excluir todos os dados'),
-              subtitle: const Text('Remove permanentemente todas as informações'),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: _showDeleteDataDialog,
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -880,27 +645,26 @@ class _ProfileScreenState extends State<ProfileScreen>
         style: ElevatedButton.styleFrom(
           backgroundColor: AppConstants.primaryColor,
           padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: _isSaving
             ? const SizedBox(
           height: 20,
           width: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Colors.white,
-          ),
+          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
         )
             : const Text(
           'Salvar Alterações',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
+    );
+  }
+
+  Widget _buildSaveButtonSection() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: _buildSaveButton(),
     );
   }
 }
