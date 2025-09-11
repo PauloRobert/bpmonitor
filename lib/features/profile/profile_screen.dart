@@ -369,34 +369,50 @@ class _ProfileScreenState extends State<ProfileScreen>
           ],
         ),
 
-        // Conteúdo
+        // Conteúdo principal
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  const SizedBox(height: 8),
-                  _buildPersonalInfoCard(),
-                  const SizedBox(height: 16),
-                  _buildStatisticsCard(),
-                  const SizedBox(height: 16),
-                  _buildHealthCard(),
-                  const SizedBox(height: 16),
-                  _buildActionsCard(),
-                  if (_isEditing) ...[
+            child: SingleChildScrollView(
+              physics: const NeverScrollableScrollPhysics(), // evita scroll duplo
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  children: [
+                    _buildPersonalInfoCard(),
+                    const SizedBox(height: 16),
+                    _buildStatisticsCard(),
+                    const SizedBox(height: 16),
+                    _buildHealthCard(),
+                    const SizedBox(height: 16),
+                    _buildActionsCard(),
                     const SizedBox(height: 24),
-                    _buildSaveButton(),
                   ],
-                ],
+                ),
               ),
             ),
           ),
         ),
+
+        // Botão de salvar sempre visível no final
+        if (_isEditing)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  _buildSaveButton(),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }
+
+
 
   Widget _buildPersonalInfoCard() {
     return Card(
@@ -482,6 +498,12 @@ class _ProfileScreenState extends State<ProfileScreen>
               },
             ),
 
+            // Botão salvar dentro do mesmo Card
+            if (_isEditing) ...[
+              const SizedBox(height: 24),
+              _buildSaveButton(),
+            ],
+
             if (!_isEditing) ...[
               const SizedBox(height: 16),
               // Idade destacada
@@ -544,6 +566,11 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
     );
   }
+
+
+
+
+
 
   Widget _buildStatisticsCard() {
     final createdDate = _currentUser!.createdAt;
