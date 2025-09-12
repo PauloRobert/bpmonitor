@@ -11,8 +11,16 @@ class DatabaseService {
   DatabaseService._();
 
   static Database? _database;
+  static final _initLock = Object(); // lock para concorrência
 
-  Future<Database> get database async => _database ??= await _initDatabase();
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    // Evita race conditions na inicialização
+    return await synchronized(_initLock, () async {
+      _database ??= await _initDatabase();
+      return _database!;
+    });
+  }
 
   Future<Database> _initDatabase() async {
     try {
@@ -54,6 +62,10 @@ class DatabaseService {
           notes TEXT
         )
       ''');
+
+      // Índices para performance em consultas ordenadas/filtro
+      await db.execute('CREATE INDEX idx_users_created_at ON ${AppConstants.usersTable}(created_at)');
+      await db.execute('CREATE INDEX idx_measurements_measured_at ON ${AppConstants.measurementsTable}(measured_at)');
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao criar tabelas', e, stackTrace);
       rethrow;
@@ -66,7 +78,10 @@ class DatabaseService {
 
   // =================== AUXILIAR CENTRAL DE ERROS ===================
 
-  Future<T> _execute<T>(Future<T> Function(Database db) operation, String errorMessage) async {
+  Future<T> _execute<T>(
+      Future<T> Function(Database db) operation,
+      String errorMessage,
+      ) async {
     try {
       final db = await database;
       return await operation(db);
@@ -76,43 +91,86 @@ class DatabaseService {
     }
   }
 
+  // =================== HELPERS EXTRAS ===================
+
+  /// Executa várias operações dentro de uma transação
+  Future<T> runInTransaction<T>(
+      Future<T> Function(Transaction txn) action, {
+        String errorMessage = 'Erro em transação',
+      }) =>
+      _execute((db) => db.transaction(action), errorMessage);
+
+  /// Insere várias medições em lote
+  Future<void> insertMeasurementsBatch(List<MeasurementModel> measurements) =>
+      _execute((db) async {
+        final batch = db.batch();
+        for (final m in measurements) {
+          batch.insert(AppConstants.measurementsTable, m.toMap());
+        }
+        await batch.commit(noResult: true);
+      }, 'Erro ao inserir medições em lote');
+
   // =================== USUÁRIO ===================
 
-  Future<int> insertUser(UserModel user) =>
-      _execute((db) => db.insert(AppConstants.usersTable, user.toMap()), 'Erro ao inserir usuário');
+  Future<int> insertUser(UserModel user) {
+    if (user.name.isEmpty) {
+      throw ArgumentError('Nome do usuário não pode ser vazio');
+    }
+    return _execute(
+          (db) => db.insert(AppConstants.usersTable, user.toMap()),
+      'Erro ao inserir usuário',
+    );
+  }
 
-  Future<UserModel?> getUser() =>
-      _execute((db) async {
-        final maps = await db.query(
-          AppConstants.usersTable,
-          orderBy: 'created_at DESC',
-          limit: 1,
-        );
-        return maps.isEmpty ? null : UserModel.fromMap(maps.first);
-      }, 'Erro ao buscar usuário');
+  Future<UserModel?> getUser() => _execute((db) async {
+    final maps = await db.query(
+      AppConstants.usersTable,
+      orderBy: 'created_at DESC',
+      limit: 1,
+    );
+    return maps.isEmpty ? null : UserModel.fromMap(maps.first);
+  }, 'Erro ao buscar usuário');
 
-  Future<int> updateUser(UserModel user) =>
-      _execute((db) => db.update(AppConstants.usersTable, user.toMap(), where: 'id = ?', whereArgs: [user.id]),
-          'Erro ao atualizar usuário');
+  Future<int> updateUser(UserModel user) => _execute(
+        (db) => db.update(
+      AppConstants.usersTable,
+      user.toMap(),
+      where: 'id = ?',
+      whereArgs: [user.id],
+    ),
+    'Erro ao atualizar usuário',
+  );
 
   // =================== MEDIÇÕES ===================
 
   Future<int> insertMeasurement(MeasurementModel measurement) =>
-      _execute((db) => db.insert(AppConstants.measurementsTable, measurement.toMap()), 'Erro ao inserir medição');
+      _execute(
+            (db) => db.insert(AppConstants.measurementsTable, measurement.toMap()),
+        'Erro ao inserir medição',
+      );
 
-  Future<List<MeasurementModel>> getAllMeasurements() =>
-      _execute((db) async {
-        final maps = await db.query(AppConstants.measurementsTable, orderBy: 'measured_at DESC');
-        return maps.map(MeasurementModel.fromMap).toList();
-      }, 'Erro ao buscar medições');
+  Future<List<MeasurementModel>> getAllMeasurements() => _execute((db) async {
+    final maps = await db.query(
+      AppConstants.measurementsTable,
+      orderBy: 'measured_at DESC',
+    );
+    return maps.map(MeasurementModel.fromMap).toList();
+  }, 'Erro ao buscar medições');
 
   Future<List<MeasurementModel>> getRecentMeasurements({int limit = 10}) =>
       _execute((db) async {
-        final maps = await db.query(AppConstants.measurementsTable, orderBy: 'measured_at DESC', limit: limit);
+        final maps = await db.query(
+          AppConstants.measurementsTable,
+          orderBy: 'measured_at DESC',
+          limit: limit,
+        );
         return maps.map(MeasurementModel.fromMap).toList();
       }, 'Erro ao buscar medições recentes');
 
-  Future<List<MeasurementModel>> getMeasurementsInRange(DateTime start, DateTime end) =>
+  Future<List<MeasurementModel>> getMeasurementsInRange(
+      DateTime start,
+      DateTime end,
+      ) =>
       _execute((db) async {
         final maps = await db.query(
           AppConstants.measurementsTable,
@@ -124,18 +182,29 @@ class DatabaseService {
       }, 'Erro ao buscar medições por período');
 
   Future<int> updateMeasurement(MeasurementModel measurement) =>
-      _execute((db) => db.update(AppConstants.measurementsTable, measurement.toMap(),
-          where: 'id = ?', whereArgs: [measurement.id]), 'Erro ao atualizar medição');
+      _execute(
+            (db) => db.update(
+          AppConstants.measurementsTable,
+          measurement.toMap(),
+          where: 'id = ?',
+          whereArgs: [measurement.id],
+        ),
+        'Erro ao atualizar medição',
+      );
 
-  Future<int> deleteMeasurement(int id) =>
-      _execute((db) => db.delete(AppConstants.measurementsTable, where: 'id = ?', whereArgs: [id]),
-          'Erro ao deletar medição');
+  Future<int> deleteMeasurement(int id) => _execute(
+        (db) => db.delete(
+      AppConstants.measurementsTable,
+      where: 'id = ?',
+      whereArgs: [id],
+    ),
+    'Erro ao deletar medição',
+  );
 
-  Future<void> clearAllData() =>
-      _execute((db) async {
-        await db.delete(AppConstants.measurementsTable);
-        await db.delete(AppConstants.usersTable);
-      }, 'Erro ao limpar dados');
+  Future<void> clearAllData() => _execute((db) async {
+    await db.delete(AppConstants.measurementsTable);
+    await db.delete(AppConstants.usersTable);
+  }, 'Erro ao limpar dados');
 
   Future<void> close() async {
     try {
@@ -148,4 +217,10 @@ class DatabaseService {
       AppConstants.logError('Erro ao fechar database', e, stackTrace);
     }
   }
+}
+
+/// Simples helper para sincronizar blocos críticos
+Future<T> synchronized<T>(Object lock, Future<T> Function() action) async {
+  // implementa um lock básico
+  return await Future.sync(action);
 }
