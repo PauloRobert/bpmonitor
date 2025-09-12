@@ -30,9 +30,9 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   final Map<String, String> _periods = {
     'all': 'Todos',
-    'week': 'Última semana',
-    'month': 'Último mês',
-    '3months': 'Últimos 3 meses',
+    'week': '7 dias',
+    'month': '30 dias',
+    '3months': '90 dias',
   };
 
   @override
@@ -57,6 +57,9 @@ class _HistoryScreenState extends State<HistoryScreen>
     try {
       setState(() => _isLoading = true);
       final measurements = await db.getAllMeasurements();
+
+      if (!mounted) return;
+
       setState(() {
         _measurements = measurements;
         _filteredMeasurements = _applyPeriodFilter(measurements);
@@ -64,13 +67,18 @@ class _HistoryScreenState extends State<HistoryScreen>
       });
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao carregar histórico', e, stackTrace);
+      if (!mounted) return;
       setState(() => _isLoading = false);
     }
   }
 
   List<MeasurementModel> _applyPeriodFilter(List<MeasurementModel> measurements) {
+    if (_selectedPeriod == 'all') {
+      return measurements;
+    }
+
     final now = DateTime.now();
-    DateTime startDate;
+    late DateTime startDate;
 
     switch (_selectedPeriod) {
       case 'week':
@@ -103,7 +111,7 @@ class _HistoryScreenState extends State<HistoryScreen>
       ),
     );
 
-    if (result == true) {
+    if (result == true && mounted) {
       _loadMeasurements();
     }
   }
@@ -119,6 +127,7 @@ class _HistoryScreenState extends State<HistoryScreen>
             const SnackBar(
               content: Text('Medição removida com sucesso'),
               backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
             ),
           );
         }
@@ -129,6 +138,7 @@ class _HistoryScreenState extends State<HistoryScreen>
             const SnackBar(
               content: Text('Erro ao remover medição'),
               backgroundColor: AppConstants.secondaryColor,
+              duration: Duration(seconds: 2),
             ),
           );
         }
@@ -140,6 +150,9 @@ class _HistoryScreenState extends State<HistoryScreen>
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
         title: const Text('Confirmar exclusão'),
         content: const Text('Tem certeza que deseja remover esta medição?'),
         actions: [
@@ -159,7 +172,9 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   void _navigateToAddMeasurement() {
     Navigator.of(context).pushNamed('/add_measurement').then((_) {
-      _loadMeasurements();
+      if (mounted) {
+        _loadMeasurements();
+      }
     });
   }
 
@@ -167,54 +182,151 @@ class _HistoryScreenState extends State<HistoryScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
-      appBar: AppBar(
-        title: const Text('Histórico'),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        titleTextStyle: const TextStyle(
-          color: AppConstants.textPrimary,
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppConstants.primaryColor,
-          unselectedLabelColor: AppConstants.textSecondary,
-          indicatorColor: AppConstants.primaryColor,
-          tabs: const [
-            Tab(text: 'Lista', icon: Icon(Icons.list)),
-            Tab(text: 'Gráfico', icon: Icon(Icons.show_chart)),
-          ],
-        ),
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.filter_list, color: AppConstants.textPrimary),
-            onSelected: _changePeriod,
-            itemBuilder: (context) => _periods.entries.map((entry) {
-              return PopupMenuItem<String>(
-                value: entry.key,
-                child: Row(
-                  children: [
-                    Icon(
-                      _selectedPeriod == entry.key
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(96), // Altura fixa otimizada
+        child: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          title: Row(
+            children: [
+              const Text(
+                'Histórico',
+                style: TextStyle(
+                  color: AppConstants.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (!_isLoading && _filteredMeasurements.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppConstants.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_filteredMeasurements.length}',
+                    style: const TextStyle(
                       color: AppConstants.primaryColor,
-                      size: 20,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                     ),
-                    const SizedBox(width: 8),
-                    Text(entry.value),
+                  ),
+                ),
+            ],
+          ),
+          actions: [
+            // Filtro de período
+            PopupMenuButton<String>(
+              icon: Stack(
+                children: [
+                  const Icon(Icons.filter_list, color: AppConstants.textPrimary),
+                  if (_selectedPeriod != 'all')
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: AppConstants.primaryColor,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              onSelected: _changePeriod,
+              offset: const Offset(0, 40),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              itemBuilder: (context) => _periods.entries.map((entry) {
+                final isSelected = _selectedPeriod == entry.key;
+                return PopupMenuItem<String>(
+                  value: entry.key,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isSelected
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          color: isSelected
+                              ? AppConstants.primaryColor
+                              : AppConstants.textSecondary,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          entry.value,
+                          style: TextStyle(
+                            color: isSelected
+                                ? AppConstants.primaryColor
+                                : AppConstants.textPrimary,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(width: 8),
+          ],
+          bottom: TabBar(
+            controller: _tabController,
+            labelColor: AppConstants.primaryColor,
+            unselectedLabelColor: AppConstants.textSecondary,
+            indicatorColor: AppConstants.primaryColor,
+            indicatorWeight: 3,
+            labelStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            tabs: [
+              Tab(
+                height: 46,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.list, size: 20),
+                    SizedBox(width: 6),
+                    Text('Lista'),
                   ],
                 ),
-              );
-            }).toList(),
+              ),
+              Tab(
+                height: 46,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.show_chart, size: 20),
+                    SizedBox(width: 6),
+                    Text('Gráfico'),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppConstants.primaryColor))
+          ? const Center(
+        child: CircularProgressIndicator(
+          color: AppConstants.primaryColor,
+        ),
+      )
           : TabBarView(
         controller: _tabController,
+        physics: const NeverScrollableScrollPhysics(), // Performance: evita scroll desnecessário
         children: [
           list_tab.MeasurementsListTab(
             measurements: _filteredMeasurements,
@@ -234,16 +346,17 @@ class _HistoryScreenState extends State<HistoryScreen>
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'addMeasurementBtn',
-        onPressed: _navigateToAddMeasurement,
-        backgroundColor: AppConstants.primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 4.0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(30.0),
+      floatingActionButton: AnimatedScale(
+        scale: _tabController.index == 0 ? 1.0 : 0.9,
+        duration: const Duration(milliseconds: 200),
+        child: FloatingActionButton(
+          heroTag: 'addMeasurementBtn',
+          onPressed: _navigateToAddMeasurement,
+          backgroundColor: AppConstants.primaryColor,
+          foregroundColor: Colors.white,
+          elevation: 4,
+          child: const Icon(Icons.add, size: 28),
         ),
-        child: const Icon(Icons.add, size: 28),
       ),
     );
   }
