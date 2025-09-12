@@ -5,7 +5,7 @@ class AppConstants {
   // Informações do App
   static const String appName = 'BP Monitor';
   static const String appDescription = 'Controle sua pressão arterial';
-  static const String version = '1.0.0';
+  static const String version = '1.1.1';
 
   // Logs Tags
   static const String logTag = '[BP_MONITOR]';
@@ -27,14 +27,15 @@ class AppConstants {
 
   // Validações de Medição
   static const int minSystolic = 70;
-  static const int maxSystolic = 250;
+  static const int maxSystolic = 180;
   static const int minDiastolic = 40;
-  static const int maxDiastolic = 150;
-  static const int minHeartRate = 30;
+  static const int maxDiastolic = 110;
+  static const int minHeartRate = 50;
   static const int maxHeartRate = 220;
 
   // ✅ FIX: Classificações de Pressão baseadas em diretrizes médicas
   // Seguindo American Heart Association e Sociedade Brasileira de Cardiologia
+  //Ministério da saúde: https://www.gov.br/conitec/pt-br/midias/protocolos/pcdt-hipertensao-arterial-sistemica.pdf
   static const Map<String, Map<String, dynamic>> pressureCategories = {
     'optimal': {
       'name': 'Ótima',
@@ -55,32 +56,32 @@ class AppConstants {
     'elevated': {
       'name': 'Elevada',
       'description': 'Pressão arterial elevada',
-      'systolicMax': 130,
+      'systolicMax': 139,
       'diastolicMax': 89,
       'color': Color(0xFFF59E0B), // Amarelo/Laranja
       'priority': 3,
     },
     'high_stage1': {
       'name': 'Alta Estágio 1',
-      'description': 'Hipertensão estágio 1',
-      'systolicMax': 139,
-      'diastolicMax': 89,
+      'description': 'Hipertensão grau 1',
+      'systolicMax': 140,
+      'diastolicMax': 90,
       'color': Color(0xFFEF4444), // Vermelho claro
       'priority': 4,
     },
     'high_stage2': {
       'name': 'Alta Estágio 2',
-      'description': 'Hipertensão estágio 2',
-      'systolicMax': 179,
-      'diastolicMax': 119,
+      'description': 'Hipertensão grau 2',
+      'systolicMax': 160,
+      'diastolicMax': 100,
       'color': Color(0xFFDC2626), // Vermelho escuro
       'priority': 5,
     },
     'crisis': {
-      'name': 'Crise Hipertensiva',
+      'name': 'Hipertensão grau 3',
       'description': 'Emergência médica - procure atendimento imediato',
-      'systolicMax': 300, // Sem limite prático
-      'diastolicMax': 200,
+      'systolicMax': 180, // Sem limite prático
+      'diastolicMax': 110,
       'color': Color(0xFF7C3AED), // Roxo
       'priority': 6,
     },
