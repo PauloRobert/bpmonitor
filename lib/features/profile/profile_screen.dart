@@ -507,7 +507,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   child: _buildStatItem(
                     Icons.calendar_month,
                     'Membro desde',
-                    '${createdDate.month}/${createdDate.year}',
+                    '${createdDate.day}/${createdDate.month}/${createdDate.year}',
                     AppConstants.successColor,
                   ),
                 ),

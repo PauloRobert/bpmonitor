@@ -294,8 +294,8 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _navigateToAddMeasurement,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Adicionar Primeira Medição'),
+              //icon: const Icon(Icons.add, size: 18),
+              label: const Text('Adicionar 1ª Medição'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryColor,
                 foregroundColor: Colors.white,
