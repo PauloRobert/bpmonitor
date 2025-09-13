@@ -8,13 +8,14 @@ class UserModel {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  const UserModel({
+  UserModel({
     this.id,
     required this.name,
     required this.birthDate,
-    required this.createdAt,
-    required this.updatedAt,
-  });
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  })  : createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
 
   /// Construtor para criar usuário vazio
   UserModel.empty()
@@ -81,10 +82,8 @@ class UserModel {
         id: map['id'] as int?,
         name: map['name'] as String? ?? '',
         birthDate: map['birth_date'] as String? ?? '',
-        createdAt: DateTime.parse(
-            map['created_at'] as String? ?? DateTime.now().toIso8601String()),
-        updatedAt: DateTime.parse(
-            map['updated_at'] as String? ?? DateTime.now().toIso8601String()),
+        createdAt: DateTime.parse(map['created_at'] as String),
+        updatedAt: DateTime.parse(map['updated_at'] as String),
       );
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao converter Map para UserModel', e, stackTrace);
@@ -129,17 +128,15 @@ class UserModel {
       name: name ?? this.name,
       birthDate: birthDate ?? this.birthDate,
       createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? DateTime.now(), // Sempre atualiza o updatedAt
+      updatedAt: updatedAt ?? DateTime.now(), // Sempre atualiza updatedAt
     );
   }
 
-  /// Converte para JSON string (útil para debug)
   @override
   String toString() {
     return 'UserModel(id: $id, name: $name, birthDate: $birthDate, age: $age, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
-  /// Compara dois usuários
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

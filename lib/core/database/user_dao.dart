@@ -12,15 +12,36 @@ import '../../shared/models/user_model.dart';
 
 class UserDao {
   final Database db;
+
   UserDao(this.db);
 
+  /// Insere um novo usuário
   Future<int> insert(UserModel user) async {
     if (user.name.isEmpty) {
       throw ArgumentError('Nome do usuário não pode ser vazio');
     }
-    return await db.insert(AppConstants.usersTable, user.toMap());
+
+    final userToInsert = user.copyWith(
+      createdAt: user.createdAt,
+      updatedAt: DateTime.now(),
+    );
+
+    return await db.insert(AppConstants.usersTable, userToInsert.toMap());
   }
 
+  /// Atualiza um usuário existente
+  Future<int> update(UserModel user) async {
+    final userToUpdate = user.copyWith(updatedAt: DateTime.now());
+
+    return await db.update(
+      AppConstants.usersTable,
+      userToUpdate.toMap(),
+      where: 'id = ?',
+      whereArgs: [user.id],
+    );
+  }
+
+  /// Busca o último usuário criado
   Future<UserModel?> getLastUser() async {
     final maps = await db.query(
       AppConstants.usersTable,
@@ -30,16 +51,17 @@ class UserDao {
     return maps.isEmpty ? null : UserModel.fromMap(maps.first);
   }
 
-  Future<int> update(UserModel user) async {
-    return await db.update(
+  /// Deleta um usuário por id
+  Future<int> delete(int id) async {
+    return await db.delete(
       AppConstants.usersTable,
-      user.toMap(),
       where: 'id = ?',
-      whereArgs: [user.id],
+      whereArgs: [id],
     );
   }
 
-  Future<int> deleteAll() async {
-    return await db.delete(AppConstants.usersTable);
+  /// Limpa todos os usuários da tabela
+  Future<void> clear() async {
+    await db.delete(AppConstants.usersTable);
   }
 }

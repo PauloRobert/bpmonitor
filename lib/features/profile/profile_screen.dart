@@ -71,6 +71,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           _nameController.text = user.name;
           _birthDateController.text = user.birthDate;
         });
+        // 👇 coloca aqui para inspecionar o valor vindo do banco
+        debugPrint("[BP_MONITOR] [DEBUG] CreatedAt do usuário: ${user.createdAt.toIso8601String()}");
+        debugPrint("[BP_MONITOR] [DEBUG] Dias de uso calculado: ${DateTime.now().difference(user.createdAt).inDays}");
+
         _animationController.forward();
       }
     } catch (e) {
