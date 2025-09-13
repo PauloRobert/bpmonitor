@@ -1,4 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Use o mesmo gradiente da sua splash screen -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@android:color/white" />
+    <item>
+        <shape android:shape="rectangle">
+            <!-- Coloque aqui as cores do seu gradiente -->
+            <gradient
+                android:startColor="#FF6B6B"
+                android:endColor="#4ECDC4"
+                android:angle="45" />
+        </shape>
+    </item>
+    <!-- Opcional: adicionar o ícone centralizado -->
+    <item android:gravity="center">
+        <bitmap android:src="@drawable/launch_icon" />
+    </item>
 </layer-list>
