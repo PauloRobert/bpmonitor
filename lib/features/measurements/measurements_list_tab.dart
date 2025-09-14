@@ -93,58 +93,6 @@ class _MeasurementsListTabState extends State<MeasurementsListTab>
     return sortedDates;
   }
 
-  // Cache estático para cores de pressão
-  static final Map<String, Color> _pressureColorCache = {};
-  static final Map<String, String> _pressureClassificationCache = {};
-
-  String _classifyPressure(int systolic, int diastolic) {
-    final key = '$systolic-$diastolic';
-
-    if (_pressureClassificationCache.containsKey(key)) {
-      return _pressureClassificationCache[key]!;
-    }
-
-    String classification;
-    if (systolic < 120 && diastolic < 80) {
-      classification = 'Normal';
-    } else if (systolic < 130 && diastolic < 80) {
-      classification = 'Elevada';
-    } else if (systolic < 140 || diastolic < 90) {
-      classification = 'Hipertensão I';
-    } else if (systolic < 180 || diastolic < 120) {
-      classification = 'Hipertensão II';
-    } else {
-      classification = 'Crise Hipertensiva';
-    }
-
-    _pressureClassificationCache[key] = classification;
-    return classification;
-  }
-
-  Color _getPressureColor(int systolic, int diastolic) {
-    final key = '$systolic-$diastolic';
-
-    if (_pressureColorCache.containsKey(key)) {
-      return _pressureColorCache[key]!;
-    }
-
-    Color color;
-    if (systolic < 120 && diastolic < 80) {
-      color = Colors.green;
-    } else if (systolic < 130 && diastolic < 80) {
-      color = Colors.orange;
-    } else if (systolic < 140 || diastolic < 90) {
-      color = Colors.deepOrange;
-    } else if (systolic < 180 || diastolic < 120) {
-      color = Colors.red;
-    } else {
-      color = Colors.red.shade900;
-    }
-
-    _pressureColorCache[key] = color;
-    return color;
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -247,8 +195,6 @@ class _MeasurementsListTabState extends State<MeasurementsListTab>
           onTap: () => _showMeasurementDetails(measurement),
           onEdit: () => widget.onEditMeasurement(measurement),
           onDelete: () => widget.onDeleteMeasurement(measurement),
-          classification: _classifyPressure(measurement.systolic, measurement.diastolic),
-          pressureColor: _getPressureColor(measurement.systolic, measurement.diastolic),
         )),
         if (showSpacer) const SizedBox(height: 8),
       ],
@@ -289,9 +235,6 @@ class _MeasurementsListTabState extends State<MeasurementsListTab>
   }
 
   void _showMeasurementDetails(MeasurementModel measurement) {
-    final classification = _classifyPressure(measurement.systolic, measurement.diastolic);
-    final pressureColor = _getPressureColor(measurement.systolic, measurement.diastolic);
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -300,8 +243,6 @@ class _MeasurementsListTabState extends State<MeasurementsListTab>
       ),
       builder: (context) => _MeasurementDetailsModal(
         measurement: measurement,
-        classification: classification,
-        pressureColor: pressureColor,
         onEdit: () {
           Navigator.pop(context);
           widget.onEditMeasurement(measurement);
@@ -327,14 +268,12 @@ class _MeasurementsListTabState extends State<MeasurementsListTab>
   }
 }
 
-// OTIMIZAÇÃO 8: Widget separado para o card de medição
+// OTIMIZAÇÃO 8: Widget separado para o card de medição - REFATORADO
 class _MeasurementCard extends StatelessWidget {
   final MeasurementModel measurement;
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  final String classification;
-  final Color pressureColor;
 
   const _MeasurementCard({
     Key? key,
@@ -342,12 +281,14 @@ class _MeasurementCard extends StatelessWidget {
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
-    required this.classification,
-    required this.pressureColor,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // ✅ REFATORADO: Usa diretamente do MeasurementModel
+    final categoryName = measurement.categoryName;
+    final pressureColor = measurement.categoryColor;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Material(
@@ -404,7 +345,7 @@ class _MeasurementCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              classification,
+                              categoryName,
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
@@ -484,25 +425,25 @@ class _MeasurementCard extends StatelessWidget {
   }
 }
 
-// OTIMIZAÇÃO 9: Modal de detalhes como widget separado
+// OTIMIZAÇÃO 9: Modal de detalhes como widget separado - REFATORADO
 class _MeasurementDetailsModal extends StatelessWidget {
   final MeasurementModel measurement;
-  final String classification;
-  final Color pressureColor;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _MeasurementDetailsModal({
     Key? key,
     required this.measurement,
-    required this.classification,
-    required this.pressureColor,
     required this.onEdit,
     required this.onDelete,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // ✅ REFATORADO: Usa diretamente do MeasurementModel
+    final categoryName = measurement.categoryName;
+    final pressureColor = measurement.categoryColor;
+
     return Container(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -549,7 +490,7 @@ class _MeasurementDetailsModal extends StatelessWidget {
           _buildDetailRow('Pressão Sistólica', '${measurement.systolic} mmHg'),
           _buildDetailRow('Pressão Diastólica', '${measurement.diastolic} mmHg'),
           _buildDetailRow('Batimentos Cardíacos', '${measurement.heartRate} bpm'),
-          _buildDetailRow('Classificação', classification, valueColor: pressureColor),
+          _buildDetailRow('Classificação', categoryName, valueColor: pressureColor),
           const SizedBox(height: 20),
           // Ações
           Row(

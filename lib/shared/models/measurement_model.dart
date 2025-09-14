@@ -31,83 +31,20 @@ class MeasurementModel {
         createdAt = DateTime.now(),
         notes = null;
 
-  /// ✅ FIX: Classificação correta baseada em diretrizes médicas
-  /// Segue as diretrizes da American Heart Association e SBC
-  String get category {
-    try {
-      // Crise hipertensiva - prioridade máxima
-      if (systolic >= 180 || diastolic >= 120) {
-        AppConstants.logWarning('Pressão $systolic/$diastolic - CRISE HIPERTENSIVA detectada');
-        return 'crisis';
-      }
+  /// ✅ REFATORADO: Usa PressureClassifier como fonte única de verdade
+  String get category => PressureClassifier.classifyPressure(systolic, diastolic);
 
-      // Hipertensão estágio 2
-      if (systolic >= 140 || diastolic >= 90) {
-        AppConstants.logInfo('Pressão $systolic/$diastolic classificada como: Hipertensão Estágio 2');
-        return 'high_stage2';
-      }
+  /// ✅ REFATORADO: Usa PressureClassifier para obter nome da categoria
+  String get categoryName => PressureClassifier.getCategoryName(category);
 
-      // Hipertensão estágio 1
-      if (systolic >= 130 || diastolic >= 80) {
-        AppConstants.logInfo('Pressão $systolic/$diastolic classificada como: Hipertensão Estágio 1');
-        return 'high_stage1';
-      }
-
-      // Pressão elevada (apenas sistólica)
-      if (systolic >= 120 && diastolic < 80) {
-        AppConstants.logInfo('Pressão $systolic/$diastolic classificada como: Elevada');
-        return 'elevated';
-      }
-
-      // Pressão ótima
-      if (systolic < 120 && diastolic < 80) {
-        AppConstants.logInfo('Pressão $systolic/$diastolic classificada como: Ótima');
-        return 'optimal';
-      }
-
-      // Normal (não deveria chegar aqui, mas é um fallback)
-      AppConstants.logInfo('Pressão $systolic/$diastolic classificada como: Normal');
-      return 'normal';
-
-    } catch (e, stackTrace) {
-      AppConstants.logError('Erro ao determinar categoria da pressão', e, stackTrace);
-      return 'high_stage2'; // Default para alta em caso de erro
-    }
-  }
-
-  /// ✅ FIX: Nomes das categorias atualizados
-  String get categoryName {
-    const categories = {
-      'optimal': 'Ótima',
-      'normal': 'Normal',
-      'elevated': 'Elevada',
-      'high_stage1': 'Alta Estágio 1',
-      'high_stage2': 'Alta Estágio 2',
-      'crisis': 'Crise Hipertensiva',
-    };
-
-    return categories[category] ?? 'Alta Estágio 2';
-  }
-
-  /// ✅ FIX: Cores das categorias atualizadas
-  Color get categoryColor {
-    const colors = {
-      'optimal': Colors.green,
-      'normal': Colors.blue,
-      'elevated': Colors.orange,
-      'high_stage1': Colors.deepOrange,
-      'high_stage2': Colors.red,
-      'crisis': Colors.purple,
-    };
-
-    return colors[category] ?? Colors.red;
-  }
+  /// ✅ REFATORADO: Usa PressureClassifier para obter cor da categoria
+  Color get categoryColor => PressureClassifier.getCategoryColor(category);
 
   /// ✅ FIX: Melhorar sistema de alertas médicos
   List<String> get medicalAlerts {
     final alerts = <String>[];
 
-    // Alertas por categoria
+    // Alertas por categoria usando PressureClassifier
     switch (category) {
       case 'crisis':
         alerts.add('⚠️ ATENÇÃO: Procure atendimento médico IMEDIATAMENTE');
@@ -188,10 +125,9 @@ class MeasurementModel {
   /// Verifica se a medição é válida
   bool get isValid => validationErrors.isEmpty;
 
-  /// ✅ FIX: Método para verificar se precisa de atenção médica
+  /// ✅ REFATORADO: Usa PressureClassifier para verificar atenção médica
   bool get needsUrgentAttention {
-    return category == 'crisis' ||
-        (systolic >= 180 || diastolic >= 120) ||
+    return PressureClassifier.needsUrgentAttention(category) ||
         heartRate > 150 ||
         heartRate < 40;
   }

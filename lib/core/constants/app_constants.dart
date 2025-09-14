@@ -27,61 +27,60 @@ class AppConstants {
 
   // Validações de Medição
   static const int minSystolic = 70;
-  static const int maxSystolic = 180;
+  static const int maxSystolic = 250;
   static const int minDiastolic = 40;
-  static const int maxDiastolic = 110;
+  static const int maxDiastolic = 130;
   static const int minHeartRate = 50;
   static const int maxHeartRate = 220;
 
-  // ✅ FIX: Classificações de Pressão baseadas em diretrizes médicas
-  // Seguindo American Heart Association e Sociedade Brasileira de Cardiologia
-  //Ministério da saúde: https://www.gov.br/conitec/pt-br/midias/protocolos/pcdt-hipertensao-arterial-sistemica.pdf
+  // ✅ CORRIGIDO: Classificações de Pressão baseadas EXATAMENTE no Ministério da Saúde
+  // Fonte oficial: https://www.gov.br/conitec/pt-br/midias/protocolos/pcdt-hipertensao-arterial-sistemica.pdf
   static const Map<String, Map<String, dynamic>> pressureCategories = {
     'optimal': {
       'name': 'Ótima',
-      'description': 'Pressão arterial ideal',
-      'systolicMax': 120,
-      'diastolicMax': 80,
+      'description': 'Pressão arterial ótima',
+      'systolicMax': 120,     // PAS < 120
+      'diastolicMax': 80,     // PAD < 80
       'color': Color(0xFF10B981), // Verde
       'priority': 1,
     },
     'normal': {
       'name': 'Normal',
       'description': 'Pressão arterial normal',
-      'systolicMax': 129,
-      'diastolicMax': 84,
+      'systolicMax': 129,     // PAS 120-129
+      'diastolicMax': 84,     // PAD 80-84
       'color': Color(0xFF3B82F6), // Azul
       'priority': 2,
     },
     'elevated': {
-      'name': 'Elevada',
-      'description': 'Pressão arterial elevada',
-      'systolicMax': 139,
-      'diastolicMax': 89,
+      'name': 'Normal Alta',
+      'description': 'Pressão arterial normal alta',
+      'systolicMax': 139,     // PAS 130-139
+      'diastolicMax': 89,     // PAD 85-89
       'color': Color(0xFFF59E0B), // Amarelo/Laranja
       'priority': 3,
     },
     'high_stage1': {
-      'name': 'Alta Estágio 1',
-      'description': 'Hipertensão grau 1',
-      'systolicMax': 140,
-      'diastolicMax': 90,
+      'name': 'Hipertensão Grau 1',
+      'description': 'Hipertensão arterial grau 1',
+      'systolicMax': 159,     // PAS 140-159
+      'diastolicMax': 99,     // PAD 90-99
       'color': Color(0xFFEF4444), // Vermelho claro
       'priority': 4,
     },
     'high_stage2': {
-      'name': 'Alta Estágio 2',
-      'description': 'Hipertensão grau 2',
-      'systolicMax': 160,
-      'diastolicMax': 100,
+      'name': 'Hipertensão Grau 2',
+      'description': 'Hipertensão arterial grau 2',
+      'systolicMax': 179,     // PAS 160-179
+      'diastolicMax': 109,    // PAD 100-109
       'color': Color(0xFFDC2626), // Vermelho escuro
       'priority': 5,
     },
     'crisis': {
-      'name': 'Hipertensão grau 3',
-      'description': 'Emergência médica - procure atendimento imediato',
-      'systolicMax': 180, // Sem limite prático
-      'diastolicMax': 110,
+      'name': 'Hipertensão Grau 3',
+      'description': 'Emergência hipertensiva - procure atendimento médico imediato',
+      'systolicMax': 999,     // PAS ≥ 180 (sem limite superior)
+      'diastolicMax': 999,    // PAD ≥ 110 (sem limite superior)
       'color': Color(0xFF7C3AED), // Roxo
       'priority': 6,
     },
@@ -217,5 +216,134 @@ class AppConstants {
   static void logUserAction(String action, [Map<String, dynamic>? data]) {
     final dataStr = data != null ? ' - Data: $data' : '';
     debugPrint('$logTag [USER_ACTION] $action$dataStr');
+  }
+}
+
+/// ============================================================================
+/// PressureClassifier - Fonte única de verdade para classificação de pressão
+/// Baseado EXATAMENTE nas diretrizes do Ministério da Saúde do Brasil
+/// ============================================================================
+class PressureClassifier {
+  /// Classifica uma medição de pressão arterial seguindo EXATAMENTE o Ministério da Saúde
+  static String classifyPressure(int systolic, int diastolic) {
+    try {
+      // Hipertensão Grau 3 (Crise Hipertensiva) - PAS ≥ 180 OU PAD ≥ 110
+      if (systolic >= 180 || diastolic >= 110) {
+        AppConstants.logMedical('Pressão $systolic/$diastolic - HIPERTENSÃO GRAU 3 (CRISE) detectada');
+        return 'crisis';
+      }
+
+      // Hipertensão Grau 2 - PAS 160-179 OU PAD 100-109
+      if (systolic >= 160 || diastolic >= 100) {
+        AppConstants.logMedical('Pressão $systolic/$diastolic classificada como: Hipertensão Grau 2');
+        return 'high_stage2';
+      }
+
+      // Hipertensão Grau 1 - PAS 140-159 OU PAD 90-99
+      if (systolic >= 140 || diastolic >= 90) {
+        AppConstants.logMedical('Pressão $systolic/$diastolic classificada como: Hipertensão Grau 1');
+        return 'high_stage1';
+      }
+
+      // Normal Alta - PAS 130-139 E PAD 85-89
+      if (systolic >= 130 && systolic <= 139 && diastolic >= 85 && diastolic <= 89) {
+        AppConstants.logMedical('Pressão $systolic/$diastolic classificada como: Normal Alta');
+        return 'elevated';
+      }
+
+      // Normal - PAS 120-129 E PAD 80-84
+      if (systolic >= 120 && systolic <= 129 && diastolic >= 80 && diastolic <= 84) {
+        AppConstants.logMedical('Pressão $systolic/$diastolic classificada como: Normal');
+        return 'normal';
+      }
+
+      // Ótima - PAS < 120 E PAD < 80
+      if (systolic < 120 && diastolic < 80) {
+        AppConstants.logMedical('Pressão $systolic/$diastolic classificada como: Ótima');
+        return 'optimal';
+      }
+
+      // Casos especiais que não se encaixam perfeitamente (ex: PAS alta com PAD baixa)
+      if (systolic >= 130) {
+        AppConstants.logMedical('Pressão $systolic/$diastolic - Sistólica elevada, classificada como Normal Alta');
+        return 'elevated';
+      }
+
+      // Fallback para normal se não se encaixar em nenhuma categoria específica
+      AppConstants.logMedical('Pressão $systolic/$diastolic não se encaixou perfeitamente - usando Normal');
+      return 'normal';
+
+    } catch (e, stackTrace) {
+      AppConstants.logError('Erro ao determinar categoria da pressão', e, stackTrace);
+      return 'high_stage2'; // Default para alta em caso de erro
+    }
+  }
+
+  /// Obtém os dados completos de uma categoria de pressão
+  static Map<String, dynamic> getCategoryData(String category) {
+    return AppConstants.pressureCategories[category] ??
+        AppConstants.pressureCategories['high_stage2']!;
+  }
+
+  /// Obtém o nome de uma categoria
+  static String getCategoryName(String category) {
+    return getCategoryData(category)['name'] as String;
+  }
+
+  /// Obtém a cor de uma categoria
+  static Color getCategoryColor(String category) {
+    return getCategoryData(category)['color'] as Color;
+  }
+
+  /// Obtém a descrição de uma categoria
+  static String getCategoryDescription(String category) {
+    return getCategoryData(category)['description'] as String;
+  }
+
+  /// Obtém a prioridade de uma categoria (para ordenação)
+  static int getCategoryPriority(String category) {
+    return getCategoryData(category)['priority'] as int;
+  }
+
+  /// Verifica se uma categoria indica necessidade de atenção médica urgente
+  static bool needsUrgentAttention(String category) {
+    return category == 'crisis';
+  }
+
+  /// Verifica se uma categoria indica pressão alta (hipertensão)
+  static bool isHighPressure(String category) {
+    return ['high_stage1', 'high_stage2', 'crisis'].contains(category);
+  }
+
+  /// Verifica se uma categoria indica pressão dentro da normalidade
+  static bool isNormalPressure(String category) {
+    return ['optimal', 'normal'].contains(category);
+  }
+
+  /// Obtém todas as categorias ordenadas por prioridade
+  static List<String> getAllCategoriesOrdered() {
+    final categories = AppConstants.pressureCategories.keys.toList();
+    categories.sort((a, b) => getCategoryPriority(a).compareTo(getCategoryPriority(b)));
+    return categories;
+  }
+
+  /// Obtém recomendação médica baseada na categoria
+  static String getMedicalRecommendation(String category) {
+    switch (category) {
+      case 'optimal':
+        return 'Mantenha hábitos saudáveis e continue monitorando.';
+      case 'normal':
+        return 'Pressão normal. Continue com acompanhamento regular.';
+      case 'elevated':
+        return 'Pressão normal alta. Considere mudanças no estilo de vida e acompanhamento médico.';
+      case 'high_stage1':
+        return 'Hipertensão Grau 1. Procure orientação médica para avaliação e possível tratamento.';
+      case 'high_stage2':
+        return 'Hipertensão Grau 2. Consulte seu médico para avaliação e tratamento adequado.';
+      case 'crisis':
+        return 'EMERGÊNCIA HIPERTENSIVA. Procure atendimento médico IMEDIATAMENTE.';
+      default:
+        return 'Consulte seu médico para avaliação adequada.';
+    }
   }
 }
