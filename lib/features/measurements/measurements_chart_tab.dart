@@ -1,4 +1,4 @@
-// measurements_chart_tab.dart - OTIMIZADO PARA PERFORMANCE
+// measurements_chart_tab.dart - MAXIMIZADO PARA GRÁFICO
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/constants/app_constants.dart';
@@ -21,156 +21,178 @@ class MeasurementsChartTab extends StatefulWidget {
   State<MeasurementsChartTab> createState() => _MeasurementsChartTabState();
 }
 
-class _MeasurementsChartTabState extends State<MeasurementsChartTab>
-    with AutomaticKeepAliveClientMixin {
-  @override
-  bool get wantKeepAlive => true;
-
-  // OTIMIZAÇÃO 1: Cache de dados processados
-  List<double>? _cachedSystolicValues;
-  List<double>? _cachedDiastolicValues;
-  List<double>? _cachedHeartRateValues;
-  double? _cachedMinY;
-  double? _cachedMaxY;
-  List<MeasurementModel>? _cachedDisplayData;
-
-  // Cache keys para invalidação
-  List<MeasurementModel>? _lastProcessedMeasurements;
-  bool? _lastShowHeartRate;
-  bool? _lastShowAllData;
-
-  int _startIndex = 0;
-  final int _maxVisiblePoints = 15;
-  bool _showAllData = false;
+class _MeasurementsChartTabState extends State<MeasurementsChartTab> {
+  int? _selectedSpotIndex;
 
   @override
-  void initState() {
-    super.initState();
-    _processDataWithCache();
-  }
-
-  @override
-  void didUpdateWidget(MeasurementsChartTab oldWidget) {
-    super.didUpdateWidget(oldWidget);
-
-    // OTIMIZAÇÃO 2: Só reprocessa se algo relevante mudou
-    if (oldWidget.measurements != widget.measurements ||
-        oldWidget.showHeartRate != widget.showHeartRate) {
-      _invalidateCache();
-      _processDataWithCache();
-    }
-  }
-
-  void _invalidateCache() {
-    _cachedSystolicValues = null;
-    _cachedDiastolicValues = null;
-    _cachedHeartRateValues = null;
-    _cachedMinY = null;
-    _cachedMaxY = null;
-    _cachedDisplayData = null;
-    _lastProcessedMeasurements = null;
-    _lastShowHeartRate = null;
-    _lastShowAllData = null;
-  }
-
-  // OTIMIZAÇÃO 3: Processamento com cache inteligente
-  void _processDataWithCache() {
-    // Verifica se pode usar cache
-    if (_cachedDisplayData != null &&
-        _lastProcessedMeasurements == widget.measurements &&
-        _lastShowHeartRate == widget.showHeartRate &&
-        _lastShowAllData == _showAllData) {
-      return; // Usa cache
-    }
-
-    _processData();
-
-    // Atualiza cache keys
-    _lastProcessedMeasurements = widget.measurements;
-    _lastShowHeartRate = widget.showHeartRate;
-    _lastShowAllData = _showAllData;
-  }
-
-  void _processData() {
+  Widget build(BuildContext context) {
     if (widget.measurements.isEmpty) {
-      _cachedDisplayData = [];
-      return;
+      return _buildEmptyState();
     }
 
-    // OTIMIZAÇÃO 4: Ordenação apenas quando necessário
-    final sorted = _lastProcessedMeasurements == widget.measurements
-        ? widget.measurements // Já está ordenado
-        : (List<MeasurementModel>.from(widget.measurements)
-      ..sort((a, b) => a.measuredAt.compareTo(b.measuredAt)));
+    final displayData = _getDisplayData();
+    final chartData = _getChartData(displayData);
 
-    if (_showAllData || sorted.length <= _maxVisiblePoints) {
-      _cachedDisplayData = sorted;
-      _startIndex = 0;
-    } else {
-      _startIndex = max(0, sorted.length - _maxVisiblePoints);
-      _cachedDisplayData = sorted.sublist(_startIndex);
-    }
-
-    // OTIMIZAÇÃO 5: Mapeamento otimizado com cache
-    _cachedSystolicValues = _cachedDisplayData!.map((m) => m.systolic.toDouble()).toList();
-    _cachedDiastolicValues = _cachedDisplayData!.map((m) => m.diastolic.toDouble()).toList();
-    _cachedHeartRateValues = _cachedDisplayData!.map((m) => m.heartRate.toDouble()).toList();
-
-    _calculateYBounds();
+    return Stack(
+      children: [
+        Container(
+          padding: const EdgeInsets.fromLTRB(8, 8, 16, 20), // Padding mínimo
+          margin: const EdgeInsets.only(bottom: 80), // Margem para navegação
+          child: _buildChart(displayData, chartData),
+        ),
+        if (_selectedSpotIndex != null) _buildCustomTooltip(displayData),
+      ],
+    );
   }
 
-  void _calculateYBounds() {
-    if (_cachedDisplayData!.isEmpty) {
-      _cachedMinY = 0;
-      _cachedMaxY = 200;
-      return;
+  List<MeasurementModel> _getDisplayData() {
+    if (widget.measurements.isEmpty) return [];
+
+    final sorted = List<MeasurementModel>.from(widget.measurements)
+      ..sort((a, b) => a.measuredAt.compareTo(b.measuredAt));
+
+    return sorted;
+  }
+
+  Map<String, dynamic> _getChartData(List<MeasurementModel> displayData) {
+    if (displayData.isEmpty) {
+      return {
+        'systolicValues': <double>[],
+        'diastolicValues': <double>[],
+        'heartRateValues': <double>[],
+        'minY': 40.0,
+        'maxY': 200.0,
+      };
     }
 
-    // OTIMIZAÇÃO 6: Cálculo de bounds otimizado
+    final systolicValues = displayData.map((m) => m.systolic.toDouble()).toList();
+    final diastolicValues = displayData.map((m) => m.diastolic.toDouble()).toList();
+    final heartRateValues = displayData.map((m) => m.heartRate.toDouble()).toList();
+
+    // Sempre inclui batimentos cardíacos nos cálculos
     final allValues = <double>[
-      ..._cachedSystolicValues!,
-      ..._cachedDiastolicValues!,
-      if (widget.showHeartRate) ..._cachedHeartRateValues!,
+      ...systolicValues,
+      ...diastolicValues,
+      ...heartRateValues,
     ];
+
+    double minY = 40;
+    double maxY = 200;
 
     if (allValues.isNotEmpty) {
       final minVal = allValues.reduce(min);
       final maxVal = allValues.reduce(max);
       final range = maxVal - minVal;
-      _cachedMinY = (minVal - range * 0.1).clamp(0, double.infinity);
-      _cachedMaxY = maxVal + range * 0.1;
-    } else {
-      _cachedMinY = 0;
-      _cachedMaxY = 200;
-    }
-  }
 
-  void _toggleDataView() {
-    setState(() {
-      _showAllData = !_showAllData;
-      _processDataWithCache();
-    });
-  }
+      minY = max(40, (minVal - range * 0.1).clamp(0, double.infinity));
+      maxY = min(250, maxVal + range * 0.2);
 
-  @override
-  Widget build(BuildContext context) {
-    super.build(context);
-
-    if (widget.measurements.isEmpty) {
-      return _buildEmptyState();
+      if (maxY - minY < 50) {
+        final center = (maxY + minY) / 2;
+        minY = max(40, center - 25);
+        maxY = min(250, center + 25);
+      }
     }
 
-    return Column(
-      children: [
-        _buildHeader(),
-        _buildLegend(),
-        Expanded(
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
-            child: _buildChart(),
+    return {
+      'systolicValues': systolicValues,
+      'diastolicValues': diastolicValues,
+      'heartRateValues': heartRateValues,
+      'minY': minY,
+      'maxY': maxY,
+    };
+  }
+
+  Widget _buildCustomTooltip(List<MeasurementModel> displayData) {
+    if (_selectedSpotIndex == null ||
+        _selectedSpotIndex! < 0 ||
+        _selectedSpotIndex! >= displayData.length) {
+      return const SizedBox.shrink();
+    }
+
+    final measurement = displayData[_selectedSpotIndex!];
+
+    return Positioned(
+      top: 30, // Mais próximo do topo
+      right: 20,
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedSpotIndex = null;
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.black87,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${measurement.formattedDate} - ${measurement.formattedTime}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${measurement.systolic} x ${measurement.diastolic} mmHg',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${measurement.heartRate} bpm',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: measurement.categoryColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: measurement.categoryColor, width: 1),
+                ),
+                child: Text(
+                  measurement.categoryName,
+                  style: TextStyle(
+                    color: measurement.categoryColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Toque para fechar',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -179,230 +201,31 @@ class _MeasurementsChartTabState extends State<MeasurementsChartTab>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.show_chart,
-            size: 64,
-            color: Colors.grey,
-          ),
+          Icon(Icons.show_chart, size: 64, color: Colors.grey),
           SizedBox(height: 16),
-          Text(
-            'Nenhuma medição para exibir',
-            style: TextStyle(
-              fontSize: 16,
-              color: AppConstants.textSecondary,
-            ),
-          ),
+          Text('Nenhuma medição para exibir', style: TextStyle(fontSize: 16, color: AppConstants.textSecondary)),
           SizedBox(height: 8),
-          Text(
-            'Adicione medições para ver o gráfico',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppConstants.textSecondary,
-            ),
-          ),
+          Text('Adicione medições para ver o gráfico', style: TextStyle(fontSize: 14, color: AppConstants.textSecondary)),
         ],
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.grey.shade200,
-            width: 1,
-          ),
-        ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Evolução das Medições',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AppConstants.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _getStatsText(),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppConstants.textSecondary.withOpacity(0.8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              _buildHeartRateToggle(),
-            ],
-          ),
-          if (widget.measurements.length > _maxVisiblePoints) ...[
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _buildDataViewToggle(),
-                const Spacer(),
-                Text(
-                  _showAllData
-                      ? 'Mostrando todas as ${widget.measurements.length} medições'
-                      : 'Mostrando últimas $_maxVisiblePoints medições',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppConstants.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeartRateToggle() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: widget.showHeartRate
-            ? Colors.red.withOpacity(0.1)
-            : Colors.grey.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.favorite,
-            size: 16,
-            color: widget.showHeartRate ? Colors.red : Colors.grey,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            'BPM',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: widget.showHeartRate ? Colors.red : Colors.grey,
-            ),
-          ),
-          Switch(
-            value: widget.showHeartRate,
-            onChanged: widget.onToggleHeartRate,
-            activeColor: Colors.red,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDataViewToggle() {
-    return InkWell(
-      onTap: _toggleDataView,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppConstants.primaryColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AppConstants.primaryColor.withOpacity(0.3),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              _showAllData ? Icons.zoom_in : Icons.zoom_out,
-              size: 16,
-              color: AppConstants.primaryColor,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              _showAllData ? 'Ver menos' : 'Ver tudo',
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: AppConstants.primaryColor,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLegend() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildLegendItem('Sistólica', AppConstants.primaryColor),
-          const SizedBox(width: 24),
-          _buildLegendItem('Diastólica', Colors.green),
-          if (widget.showHeartRate) ...[
-            const SizedBox(width: 24),
-            _buildLegendItem('BPM', Colors.red),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLegendItem(String label, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 12,
-          height: 3,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: AppConstants.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // OTIMIZAÇÃO 7: Widget chart memoizado
-  Widget _buildChart() {
+  Widget _buildChart(List<MeasurementModel> displayData, Map<String, dynamic> chartData) {
     return LineChart(
       LineChartData(
         lineTouchData: _buildTouchData(),
-        gridData: _buildGridData(),
-        titlesData: _buildTitlesData(),
+        gridData: _buildGridData(chartData),
+        titlesData: _buildTitlesData(displayData, chartData),
         borderData: _buildBorderData(),
-        lineBarsData: _buildLineBarsData(),
+        lineBarsData: _buildLineBarsData(chartData),
         minX: 0,
-        maxX: (_cachedDisplayData!.length - 1).toDouble(),
-        minY: _cachedMinY!,
-        maxY: _cachedMaxY!,
+        maxX: (displayData.length - 1).toDouble(),
+        minY: chartData['minY'],
+        maxY: chartData['maxY'],
         clipData: const FlClipData.all(),
       ),
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOutCubic,
     );
   }
@@ -410,20 +233,24 @@ class _MeasurementsChartTabState extends State<MeasurementsChartTab>
   LineTouchData _buildTouchData() {
     return LineTouchData(
       enabled: true,
-      touchSpotThreshold: 20,
+      touchSpotThreshold: 25,
+      touchCallback: (FlTouchEvent event, LineTouchResponse? response) {
+        if (event is FlTapUpEvent && response?.lineBarSpots?.isNotEmpty == true) {
+          final spot = response!.lineBarSpots!.first;
+          setState(() {
+            _selectedSpotIndex = spot.spotIndex;
+          });
+        }
+      },
       getTouchedSpotIndicator: (LineChartBarData barData, List<int> spotIndexes) {
         return spotIndexes.map((index) {
           return TouchedSpotIndicatorData(
-            const FlLine(
-              color: Colors.grey,
-              strokeWidth: 2,
-              dashArray: [5, 5],
-            ),
+            const FlLine(color: Colors.grey, strokeWidth: 2, dashArray: [5, 5]),
             FlDotData(
               show: true,
               getDotPainter: (spot, percent, barData, index) {
                 return FlDotCirclePainter(
-                  radius: 6,
+                  radius: 8,
                   color: Colors.white,
                   strokeWidth: 3,
                   strokeColor: barData.color ?? Colors.blue,
@@ -434,92 +261,41 @@ class _MeasurementsChartTabState extends State<MeasurementsChartTab>
         }).toList();
       },
       touchTooltipData: LineTouchTooltipData(
-        tooltipBorderRadius: BorderRadius.circular(8),
-        getTooltipColor: (touchedSpot) => Colors.black87,
-        tooltipPadding: const EdgeInsets.all(8),
-        tooltipMargin: 12,
-        fitInsideHorizontally: true,
-        fitInsideVertically: true,
-        getTooltipItems: (List<LineBarSpot> touchedSpots) {
-          return touchedSpots.map((LineBarSpot touchedSpot) {
-            final index = touchedSpot.spotIndex;
-            if (index < 0 || index >= _cachedDisplayData!.length) {
-              return null;
-            }
-
-            final measurement = _cachedDisplayData![index];
-            final lines = <String>[
-              '${measurement.formattedDate} ${measurement.formattedTime}',
-            ];
-
-            if (touchedSpot.barIndex == 0) {
-              lines.add('Sistólica: ${measurement.systolic} mmHg');
-            } else if (touchedSpot.barIndex == 1) {
-              lines.add('Diastólica: ${measurement.diastolic} mmHg');
-            } else if (touchedSpot.barIndex == 2 && widget.showHeartRate) {
-              lines.add('Batimentos: ${measurement.heartRate} bpm');
-            }
-
-            return LineTooltipItem(
-              lines.join('\n'),
-              const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            );
-          }).toList();
-        },
+        showOnTopOfTheChartBoxArea: false,
+        getTooltipItems: (touchedSpots) => [],
       ),
     );
   }
 
-  FlGridData _buildGridData() {
+  FlGridData _buildGridData(Map<String, dynamic> chartData) {
     return FlGridData(
       show: true,
-      drawVerticalLine: _cachedDisplayData!.length <= 10,
-      horizontalInterval: (_cachedMaxY! - _cachedMinY!) / 6,
+      drawVerticalLine: widget.measurements.length <= 10,
+      horizontalInterval: (chartData['maxY'] - chartData['minY']) / 6,
       verticalInterval: 1,
-      getDrawingHorizontalLine: (value) {
-        return FlLine(
-          color: Colors.grey.withOpacity(0.15),
-          strokeWidth: 1,
-        );
-      },
-      getDrawingVerticalLine: (value) {
-        return FlLine(
-          color: Colors.grey.withOpacity(0.15),
-          strokeWidth: 1,
-        );
-      },
+      getDrawingHorizontalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.15), strokeWidth: 1),
+      getDrawingVerticalLine: (value) => FlLine(color: Colors.grey.withOpacity(0.15), strokeWidth: 1),
     );
   }
 
-  FlTitlesData _buildTitlesData() {
+  FlTitlesData _buildTitlesData(List<MeasurementModel> displayData, Map<String, dynamic> chartData) {
     return FlTitlesData(
       show: true,
       bottomTitles: AxisTitles(
         sideTitles: SideTitles(
           showTitles: true,
-          reservedSize: 26,
-          interval: _calculateXInterval(),
+          reservedSize: 25, // Reduzido
+          interval: _calculateXInterval(displayData),
           getTitlesWidget: (value, meta) {
             final index = value.toInt();
-            if (index < 0 || index >= _cachedDisplayData!.length) {
-              return const SizedBox.shrink();
-            }
-            if (_cachedDisplayData!.length > 7 && index % 2 != 0) {
-              return const SizedBox.shrink();
-            }
-            final measurement = _cachedDisplayData![index];
+            if (index < 0 || index >= displayData.length) return const SizedBox.shrink();
+            if (displayData.length > 7 && index % 2 != 0) return const SizedBox.shrink();
+
+            final measurement = displayData[index];
             final date = measurement.formattedDate.split('/');
-            return Text(
-              '${date[0]}/${date[1]}',
-              style: const TextStyle(
-                fontSize: 10,
-                color: AppConstants.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
+            return Padding(
+              padding: const EdgeInsets.only(top: 2), // Reduzido
+              child: Text('${date[0]}/${date[1]}', style: const TextStyle(fontSize: 9, color: AppConstants.textSecondary, fontWeight: FontWeight.w500)),
             );
           },
         ),
@@ -527,17 +303,10 @@ class _MeasurementsChartTabState extends State<MeasurementsChartTab>
       leftTitles: AxisTitles(
         sideTitles: SideTitles(
           showTitles: true,
-          reservedSize: 40,
-          interval: _calculateYInterval(),
+          reservedSize: 40, // Reduzido
+          interval: _calculateYInterval(chartData),
           getTitlesWidget: (value, meta) {
-            return Text(
-              value.toInt().toString(),
-              style: const TextStyle(
-                fontSize: 10,
-                color: AppConstants.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            );
+            return Text(value.toInt().toString(), style: const TextStyle(fontSize: 9, color: AppConstants.textSecondary, fontWeight: FontWeight.w500));
           },
         ),
       ),
@@ -556,12 +325,15 @@ class _MeasurementsChartTabState extends State<MeasurementsChartTab>
     );
   }
 
-  List<LineChartBarData> _buildLineBarsData() {
+  List<LineChartBarData> _buildLineBarsData(Map<String, dynamic> chartData) {
+    final systolicValues = chartData['systolicValues'] as List<double>;
+    final diastolicValues = chartData['diastolicValues'] as List<double>;
+    final heartRateValues = chartData['heartRateValues'] as List<double>;
+
     return [
+      // Sistólica
       LineChartBarData(
-        spots: _cachedSystolicValues!.asMap().entries.map((e) {
-          return FlSpot(e.key.toDouble(), e.value);
-        }).toList(),
+        spots: systolicValues.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
         isCurved: true,
         curveSmoothness: 0.3,
         color: AppConstants.primaryColor,
@@ -570,23 +342,20 @@ class _MeasurementsChartTabState extends State<MeasurementsChartTab>
         dotData: FlDotData(
           show: true,
           getDotPainter: (spot, percent, barData, index) {
+            final isSelected = _selectedSpotIndex == index;
             return FlDotCirclePainter(
-              radius: 4,
+              radius: isSelected ? 6 : 4,
               color: AppConstants.primaryColor,
               strokeWidth: 2,
               strokeColor: Colors.white,
             );
           },
         ),
-        belowBarData: BarAreaData(
-          show: true,
-          color: AppConstants.primaryColor.withOpacity(0.1),
-        ),
+        belowBarData: BarAreaData(show: true, color: AppConstants.primaryColor.withOpacity(0.1)),
       ),
+      // Diastólica
       LineChartBarData(
-        spots: _cachedDiastolicValues!.asMap().entries.map((e) {
-          return FlSpot(e.key.toDouble(), e.value);
-        }).toList(),
+        spots: diastolicValues.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
         isCurved: true,
         curveSmoothness: 0.3,
         color: Colors.green,
@@ -595,67 +364,54 @@ class _MeasurementsChartTabState extends State<MeasurementsChartTab>
         dotData: FlDotData(
           show: true,
           getDotPainter: (spot, percent, barData, index) {
+            final isSelected = _selectedSpotIndex == index;
             return FlDotCirclePainter(
-              radius: 4,
+              radius: isSelected ? 6 : 4,
               color: Colors.green,
               strokeWidth: 2,
               strokeColor: Colors.white,
             );
           },
         ),
-        belowBarData: BarAreaData(
-          show: true,
-          color: Colors.green.withOpacity(0.1),
-        ),
+        belowBarData: BarAreaData(show: true, color: Colors.green.withOpacity(0.1)),
       ),
-      if (widget.showHeartRate)
-        LineChartBarData(
-          spots: _cachedHeartRateValues!.asMap().entries.map((e) {
-            return FlSpot(e.key.toDouble(), e.value);
-          }).toList(),
-          isCurved: true,
-          curveSmoothness: 0.3,
-          color: Colors.red,
-          barWidth: 2,
-          isStrokeCapRound: true,
-          dashArray: [5, 3],
-          dotData: FlDotData(
-            show: true,
-            getDotPainter: (spot, percent, barData, index) {
-              return FlDotCirclePainter(
-                radius: 2.5,
-                color: Colors.red,
-                strokeWidth: 1.5,
-                strokeColor: Colors.white,
-              );
-            },
-          ),
-          belowBarData: BarAreaData(show: false),
+      // Batimentos (sempre visível)
+      LineChartBarData(
+        spots: heartRateValues.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value)).toList(),
+        isCurved: true,
+        curveSmoothness: 0.3,
+        color: Colors.red,
+        barWidth: 2,
+        isStrokeCapRound: true,
+        dashArray: [5, 3],
+        dotData: FlDotData(
+          show: true,
+          getDotPainter: (spot, percent, barData, index) {
+            final isSelected = _selectedSpotIndex == index;
+            return FlDotCirclePainter(
+              radius: isSelected ? 4 : 2.5,
+              color: Colors.red,
+              strokeWidth: 1.5,
+              strokeColor: Colors.white,
+            );
+          },
         ),
+        belowBarData: BarAreaData(show: false),
+      ),
     ];
   }
 
-  double _calculateXInterval() {
-    if (_cachedDisplayData!.length <= 5) return 1;
-    if (_cachedDisplayData!.length <= 10) return 2;
-    return (_cachedDisplayData!.length / 4).ceilToDouble();
+  double _calculateXInterval(List<MeasurementModel> displayData) {
+    if (displayData.length <= 5) return 1;
+    if (displayData.length <= 10) return 2;
+    return (displayData.length / 4).ceilToDouble();
   }
 
-  double _calculateYInterval() {
-    final range = _cachedMaxY! - _cachedMinY!;
+  double _calculateYInterval(Map<String, dynamic> chartData) {
+    final range = chartData['maxY'] - chartData['minY'];
     if (range <= 30) return 5;
     if (range <= 60) return 10;
     if (range <= 120) return 20;
     return 30;
-  }
-
-  String _getStatsText() {
-    if (_cachedDisplayData!.isEmpty) return '';
-
-    // OTIMIZAÇÃO 8: Cálculo de média otimizado
-    final avgSystolic = (_cachedSystolicValues!.reduce((a, b) => a + b) / _cachedSystolicValues!.length).round();
-    final avgDiastolic = (_cachedDiastolicValues!.reduce((a, b) => a + b) / _cachedDiastolicValues!.length).round();
-
-    return 'Média: $avgSystolic/$avgDiastolic mmHg';
   }
 }
