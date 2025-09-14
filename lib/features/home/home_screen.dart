@@ -7,6 +7,7 @@ import '../../shared/models/user_model.dart';
 import '../../shared/models/measurement_model.dart';
 import '../measurements/add_measurement_screen.dart';
 import '../history/history_screen.dart';
+import '../../shared/widgets/main_navigation.dart';
 
 // MESMO abstract class - SEM BREAKING CHANGES
 abstract class HomeScreenController {
@@ -248,6 +249,9 @@ class _HomeScreenState extends State<HomeScreen>
   /// Navegação para histórico
   void _navigateToHistory() async {
     AppConstants.logNavigation('HomeScreen', 'HistoryScreen');
+    // Usa a navegação do MainNavigation
+
+    MainNavigation.navigateToTab(context, 1); // Índice 1 = Histórico
 
     final result = await Navigator.of(context).push(
       MaterialPageRoute(

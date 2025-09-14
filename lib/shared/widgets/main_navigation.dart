@@ -9,6 +9,14 @@ import '../../features/reports/reports_screen.dart'; // ✅ IMPORTAÇÃO CORRIGI
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
 
+  // No MainNavigation, adicione este metodo público:
+  static void navigateToTab(BuildContext context, int tabIndex) {
+    final state = context.findAncestorStateOfType<State<MainNavigation>>();
+    if (state != null && state is _MainNavigationState) {
+      state._onTabSelected(tabIndex);
+    }
+  }
+
   @override
   State<MainNavigation> createState() => _MainNavigationState();
 }
@@ -39,6 +47,9 @@ class _MainNavigationState extends State<MainNavigation> {
     _pageController.dispose();
     super.dispose();
   }
+
+
+
 
   final List<NavigationItem> _navigationItems = [
     NavigationItem(
@@ -285,7 +296,6 @@ class NavigationItem {
   });
 }
 
-// ✅ REMOVIDO: ReportsScreen placeholder (agora está em arquivo separado)
 
 abstract class HomeScreenController {
   void refreshData();
