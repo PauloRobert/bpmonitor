@@ -33,9 +33,18 @@ class AppConstants {
   static const int minHeartRate = 50;
   static const int maxHeartRate = 220;
 
-  // ✅ CORRIGIDO: Classificações de Pressão baseadas EXATAMENTE no Ministério da Saúde
-  // Fonte oficial: https://www.gov.br/conitec/pt-br/midias/protocolos/pcdt-hipertensao-arterial-sistemica.pdf
+  // ✅ COMPLETO: Classificações de Pressão baseadas no Ministério da Saúde
+  // Incluindo hipotensão (pressão baixa) conforme referência oficial
+  // Fonte: https://www.gov.br/conitec/pt-br/midias/protocolos/pcdt-hipertensao-arterial-sistemica.pdf
   static const Map<String, Map<String, dynamic>> pressureCategories = {
+    'hypotension': {
+      'name': 'Hipotensão',
+      'description': 'Pressão arterial baixa - pode causar sintomas',
+      'systolicMax': 90,      // PAS < 90
+      'diastolicMax': 60,     // PAD < 60
+      'color': Color(0xFF6366F1), // Índigo/Roxo claro
+      'priority': 0,
+    },
     'optimal': {
       'name': 'Ótima',
       'description': 'Pressão arterial ótima',
@@ -170,6 +179,8 @@ class AppConstants {
       'ATENÇÃO: Valores indicam necessidade de avaliação médica urgente';
   static const String highPressureMessage =
       'Pressão alta detectada. Considere consultar seu médico';
+  static const String lowPressureMessage =
+      'Pressão baixa detectada. Considere consultar seu médico';
   static const String measurementTipsMessage =
       'Dica: Descanse 5 minutos antes de medir e mantenha os pés no chão';
 
@@ -221,12 +232,18 @@ class AppConstants {
 
 /// ============================================================================
 /// PressureClassifier - Fonte única de verdade para classificação de pressão
-/// Baseado EXATAMENTE nas diretrizes do Ministério da Saúde do Brasil
+/// Baseado nas diretrizes do Ministério da Saúde + Hipotensão
 /// ============================================================================
 class PressureClassifier {
-  /// Classifica uma medição de pressão arterial seguindo EXATAMENTE o Ministério da Saúde
+  /// Classifica uma medição de pressão arterial incluindo hipotensão
   static String classifyPressure(int systolic, int diastolic) {
     try {
+      // ✅ NOVO: Hipotensão - PAS < 90 OU PAD < 60
+      if (systolic < 90 || diastolic < 60) {
+        AppConstants.logMedical('Pressão $systolic/$diastolic - HIPOTENSÃO detectada');
+        return 'hypotension';
+      }
+
       // Hipertensão Grau 3 (Crise Hipertensiva) - PAS ≥ 180 OU PAD ≥ 110
       if (systolic >= 180 || diastolic >= 110) {
         AppConstants.logMedical('Pressão $systolic/$diastolic - HIPERTENSÃO GRAU 3 (CRISE) detectada');
@@ -257,21 +274,21 @@ class PressureClassifier {
         return 'normal';
       }
 
-      // Ótima - PAS < 120 E PAD < 80
-      if (systolic < 120 && diastolic < 80) {
+      // Ótima - PAS 90-119 E PAD 60-79 (ajustado para não conflitar com hipotensão)
+      if (systolic >= 90 && systolic < 120 && diastolic >= 60 && diastolic < 80) {
         AppConstants.logMedical('Pressão $systolic/$diastolic classificada como: Ótima');
         return 'optimal';
       }
 
-      // Casos especiais que não se encaixam perfeitamente (ex: PAS alta com PAD baixa)
+      // Casos especiais que não se encaixam perfeitamente
       if (systolic >= 130) {
         AppConstants.logMedical('Pressão $systolic/$diastolic - Sistólica elevada, classificada como Normal Alta');
         return 'elevated';
       }
 
-      // Fallback para normal se não se encaixar em nenhuma categoria específica
-      AppConstants.logMedical('Pressão $systolic/$diastolic não se encaixou perfeitamente - usando Normal');
-      return 'normal';
+      // Fallback para ótima se valores estão na faixa normal mas não se encaixam perfeitamente
+      AppConstants.logMedical('Pressão $systolic/$diastolic não se encaixou perfeitamente - usando Ótima');
+      return 'optimal';
 
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao determinar categoria da pressão', e, stackTrace);
@@ -307,12 +324,17 @@ class PressureClassifier {
 
   /// Verifica se uma categoria indica necessidade de atenção médica urgente
   static bool needsUrgentAttention(String category) {
-    return category == 'crisis';
+    return ['hypotension', 'crisis'].contains(category);
   }
 
   /// Verifica se uma categoria indica pressão alta (hipertensão)
   static bool isHighPressure(String category) {
     return ['high_stage1', 'high_stage2', 'crisis'].contains(category);
+  }
+
+  /// ✅ NOVO: Verifica se uma categoria indica pressão baixa (hipotensão)
+  static bool isLowPressure(String category) {
+    return category == 'hypotension';
   }
 
   /// Verifica se uma categoria indica pressão dentro da normalidade
@@ -330,6 +352,8 @@ class PressureClassifier {
   /// Obtém recomendação médica baseada na categoria
   static String getMedicalRecommendation(String category) {
     switch (category) {
+      case 'hypotension':
+        return 'Pressão baixa detectada. Considere aumentar a ingestão de líquidos e consulte seu médico se houver sintomas como tontura ou fraqueza.';
       case 'optimal':
         return 'Mantenha hábitos saudáveis e continue monitorando.';
       case 'normal':
