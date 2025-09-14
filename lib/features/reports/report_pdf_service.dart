@@ -35,8 +35,8 @@ class ReportPdfService {
   }) async {
     final pdf = pw.Document(
       title: 'Relatório de Saúde - ${user.name}',
-      author: 'App de Saúde',
-      creator: 'App de Saúde',
+      author: 'BPMonitor',
+      creator: 'BPMonitor',
     );
 
     try {

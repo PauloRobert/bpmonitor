@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'dart:async';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_service.dart';
 import '../../shared/models/measurement_model.dart';
@@ -14,15 +15,15 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+
+  @override
+  bool get wantKeepAlive => true; // OTIMIZAÇÃO 1: Mantém estado
+
   final db = DatabaseService.instance;
 
-  // Animation Controllers
-  late AnimationController _fadeController;
-  late AnimationController _slideController;
-  late AnimationController _chartController;
-
-  // Animations
+  // OTIMIZAÇÃO 2: Apenas um AnimationController
+  late AnimationController _masterController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _chartAnimation;
@@ -32,8 +33,10 @@ class _ReportsScreenState extends State<ReportsScreen>
   UserModel? _user;
   bool _isLoading = true;
 
-  // Report Data
+  // OTIMIZAÇÃO 3: Cache de dados processados
   Map<String, dynamic> _reportData = {};
+  final Map<String, Map<String, dynamic>> _reportCache = {};
+  Timer? _debounceTimer;
 
   // Selected Period
   String _selectedPeriod = 'month';
@@ -41,30 +44,19 @@ class _ReportsScreenState extends State<ReportsScreen>
     'week': 'Última semana',
     'month': 'Último mês',
     '3months': '3 meses',
-    //'year': 'Último ano',
-    //'all': 'Todo período',
   };
 
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
-    _loadData();
+    _loadDataOptimized();
   }
 
   void _initializeAnimations() {
-    _fadeController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 1000),
-      vsync: this,
-    );
-
-    _chartController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+    // OTIMIZAÇÃO 2: Um controller apenas com múltiplas animações
+    _masterController = AnimationController(
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
 
@@ -72,65 +64,76 @@ class _ReportsScreenState extends State<ReportsScreen>
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(
-      parent: _fadeController,
-      curve: Curves.easeOutQuart,
+      parent: _masterController,
+      curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
     ));
 
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.3),
       end: Offset.zero,
     ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeOutQuart,
+      parent: _masterController,
+      curve: const Interval(0.1, 0.6, curve: Curves.easeOut),
     ));
 
     _chartAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(
-      parent: _chartController,
-      curve: Curves.elasticOut,
+      parent: _masterController,
+      curve: const Interval(0.4, 1.0, curve: Curves.elasticOut),
     ));
   }
 
   @override
   void dispose() {
-    _fadeController.dispose();
-    _slideController.dispose();
-    _chartController.dispose();
+    _masterController.dispose();
+    _debounceTimer?.cancel();
     super.dispose();
   }
 
-  Future<void> _loadData() async {
+  // OTIMIZAÇÃO 4: Carregamento paralelo com cache
+  Future<void> _loadDataOptimized() async {
     setState(() => _isLoading = true);
 
     try {
-      final measurements = await db.getAllMeasurements();
-      final user = await db.getUser();
+      // Carregamento paralelo
+      final results = await Future.wait([
+        db.getAllMeasurements(),
+        db.getUser(),
+      ]);
+
+      if (!mounted) return;
 
       setState(() {
-        _measurements = measurements;
-        _user = user;
+        _measurements = results[0] as List<MeasurementModel>;
+        _user = results[1] as UserModel?;
       });
 
-      _generateReportData();
-      _startAnimations();
+      _generateReportDataWithCache();
+      _masterController.forward();
 
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao carregar dados dos relatórios', e, stackTrace);
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  void _startAnimations() {
-    _fadeController.forward();
-    Future.delayed(const Duration(milliseconds: 200), () {
-      _slideController.forward();
-    });
-    Future.delayed(const Duration(milliseconds: 600), () {
-      _chartController.forward();
-    });
+  // OTIMIZAÇÃO 5: Cache inteligente para cálculos pesados
+  void _generateReportDataWithCache() {
+    // Verifica cache primeiro
+    if (_reportCache.containsKey(_selectedPeriod)) {
+      AppConstants.logInfo('Usando cache para relatório: $_selectedPeriod');
+      setState(() {
+        _reportData = _reportCache[_selectedPeriod]!;
+      });
+      return;
+    }
+
+    _generateReportData();
   }
 
   void _generateReportData() {
@@ -146,23 +149,8 @@ class _ReportsScreenState extends State<ReportsScreen>
       return;
     }
 
-    // Estatísticas básicas
-    final systolicValues = filteredMeasurements.map((m) => m.systolic).toList();
-    final diastolicValues = filteredMeasurements.map((m) => m.diastolic).toList();
-    final heartRateValues = filteredMeasurements.map((m) => m.heartRate).toList();
-
-    // Médias
-    final avgSystolic = systolicValues.reduce((a, b) => a + b) / systolicValues.length;
-    final avgDiastolic = diastolicValues.reduce((a, b) => a + b) / diastolicValues.length;
-    final avgHeartRate = heartRateValues.reduce((a, b) => a + b) / heartRateValues.length;
-
-    // Extremos
-    final maxSystolic = systolicValues.reduce(math.max);
-    final minSystolic = systolicValues.reduce(math.min);
-    final maxDiastolic = diastolicValues.reduce(math.max);
-    final minDiastolic = diastolicValues.reduce(math.min);
-    final maxHeartRate = heartRateValues.reduce(math.max);
-    final minHeartRate = heartRateValues.reduce(math.min);
+    // OTIMIZAÇÃO 6: Processamento otimizado em uma passada
+    final stats = _calculateStatsOptimized(filteredMeasurements);
 
     // Distribuição por categorias
     final categoryDistribution = <String, int>{};
@@ -171,23 +159,10 @@ class _ReportsScreenState extends State<ReportsScreen>
       categoryDistribution[category] = (categoryDistribution[category] ?? 0) + 1;
     }
 
-    // Tendência (últimas 5 medições vs primeiras 5)
-    String trend = 'stable';
-    if (filteredMeasurements.length >= 10) {
-      final recent = filteredMeasurements.take(5).map((m) => m.systolic).toList();
-      final older = filteredMeasurements.skip(filteredMeasurements.length - 5).map((m) => m.systolic).toList();
+    // Tendência otimizada
+    final trend = _calculateTrendOptimized(filteredMeasurements);
 
-      final recentAvg = recent.reduce((a, b) => a + b) / recent.length;
-      final olderAvg = older.reduce((a, b) => a + b) / older.length;
-
-      if (recentAvg > olderAvg + 5) {
-        trend = 'increasing';
-      } else if (recentAvg < olderAvg - 5) {
-        trend = 'decreasing';
-      }
-    }
-
-    // Horários mais comuns de medição
+    // Horários mais comuns
     final hourDistribution = <int, int>{};
     for (final measurement in filteredMeasurements) {
       final hour = measurement.measuredAt.hour;
@@ -198,13 +173,66 @@ class _ReportsScreenState extends State<ReportsScreen>
         .reduce((a, b) => a.value > b.value ? a : b)
         .key;
 
-    _reportData = {
+    final reportData = {
       'totalMeasurements': filteredMeasurements.length,
       'period': _selectedPeriod,
+      'averages': stats['averages'],
+      'extremes': stats['extremes'],
+      'categoryDistribution': categoryDistribution,
+      'trend': trend,
+      'mostCommonHour': mostCommonHour,
+      'measurements': filteredMeasurements,
+    };
+
+    // Armazena no cache (máximo 10 períodos)
+    if (_reportCache.length >= 10) {
+      _reportCache.clear();
+    }
+    _reportCache[_selectedPeriod] = reportData;
+
+    setState(() {
+      _reportData = reportData;
+    });
+  }
+
+  // OTIMIZAÇÃO 7: Cálculo de estatísticas em uma única passada
+  Map<String, dynamic> _calculateStatsOptimized(List<MeasurementModel> measurements) {
+    if (measurements.isEmpty) {
+      return {'averages': {}, 'extremes': {}};
+    }
+
+    double systolicSum = 0;
+    double diastolicSum = 0;
+    double heartRateSum = 0;
+
+    int maxSystolic = measurements.first.systolic;
+    int minSystolic = measurements.first.systolic;
+    int maxDiastolic = measurements.first.diastolic;
+    int minDiastolic = measurements.first.diastolic;
+    int maxHeartRate = measurements.first.heartRate;
+    int minHeartRate = measurements.first.heartRate;
+
+    // Uma única passada para calcular tudo
+    for (final measurement in measurements) {
+      systolicSum += measurement.systolic;
+      diastolicSum += measurement.diastolic;
+      heartRateSum += measurement.heartRate;
+
+      maxSystolic = math.max(maxSystolic, measurement.systolic);
+      minSystolic = math.min(minSystolic, measurement.systolic);
+      maxDiastolic = math.max(maxDiastolic, measurement.diastolic);
+      minDiastolic = math.min(minDiastolic, measurement.diastolic);
+      maxHeartRate = math.max(maxHeartRate, measurement.heartRate);
+      minHeartRate = math.min(minHeartRate, measurement.heartRate);
+    }
+
+    final count = measurements.length;
+
+    return {
       'averages': {
-        'systolic': avgSystolic,
-        'diastolic': avgDiastolic,
-        'heartRate': avgHeartRate,
+        'systolic': systolicSum / count,
+        'diastolic': diastolicSum / count,
+        'heartRate': heartRateSum / count,
       },
       'extremes': {
         'maxSystolic': maxSystolic,
@@ -214,11 +242,32 @@ class _ReportsScreenState extends State<ReportsScreen>
         'maxHeartRate': maxHeartRate,
         'minHeartRate': minHeartRate,
       },
-      'categoryDistribution': categoryDistribution,
-      'trend': trend,
-      'mostCommonHour': mostCommonHour,
-      'measurements': filteredMeasurements,
     };
+  }
+
+  // OTIMIZAÇÃO 8: Cálculo de tendência otimizado
+  String _calculateTrendOptimized(List<MeasurementModel> measurements) {
+    if (measurements.length < 10) return 'stable';
+
+    final sampleSize = math.min(5, measurements.length ~/ 2);
+
+    double recentSum = 0;
+    double olderSum = 0;
+
+    for (int i = 0; i < sampleSize; i++) {
+      recentSum += measurements[i].systolic;
+      olderSum += measurements[measurements.length - 1 - i].systolic;
+    }
+
+    final recentAvg = recentSum / sampleSize;
+    final olderAvg = olderSum / sampleSize;
+
+    if (recentAvg > olderAvg + 5) {
+      return 'increasing';
+    } else if (recentAvg < olderAvg - 5) {
+      return 'decreasing';
+    }
+    return 'stable';
   }
 
   List<MeasurementModel> _getFilteredMeasurements() {
@@ -247,13 +296,19 @@ class _ReportsScreenState extends State<ReportsScreen>
     return _measurements.where((m) => m.measuredAt.isAfter(startDate)).toList();
   }
 
+  // OTIMIZAÇÃO 9: Debounce para mudanças de período
   void _changePeriod(String period) {
-    setState(() {
-      _selectedPeriod = period;
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 200), () {
+      setState(() {
+        _selectedPeriod = period;
+      });
+      _generateReportDataWithCache();
+
+      // Reinicia apenas a animação do chart
+      _masterController.reset();
+      _masterController.forward();
     });
-    _generateReportData();
-    _chartController.reset();
-    _chartController.forward();
   }
 
   Color _getTrendColor(String trend) {
@@ -291,11 +346,12 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Para AutomaticKeepAliveClientMixin
+
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
-      // Padding para evitar que o conteúdo fique atrás do menu inferior
       body: SafeArea(
-        bottom: true, // Garante espaço na parte inferior
+        bottom: true,
         child: _isLoading
             ? const Center(
           child: CircularProgressIndicator(color: AppConstants.primaryColor),
@@ -314,23 +370,17 @@ class _ReportsScreenState extends State<ReportsScreen>
   Widget _buildContent() {
     return Column(
       children: [
-        // AppBar simplificada e fixa
         _buildAppBar(),
-
-        // Seletor de período redesenhado
         _buildPeriodSelector(),
-
-        // Conteúdo principal com scroll
         Expanded(
           child: _reportData.isEmpty
               ? _buildEmptyState()
               : SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 80), // Padding extra no fundo
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
             physics: const BouncingScrollPhysics(),
             child: Column(
               children: [
                 const SizedBox(height: 16),
-                // Primeiro o card de tendência conforme solicitado
                 _buildTrendCard(),
                 const SizedBox(height: 16),
                 _buildSummaryCard(),
@@ -342,7 +392,6 @@ class _ReportsScreenState extends State<ReportsScreen>
                 _buildInsightsCard(),
                 const SizedBox(height: 16),
                 _buildActionButtons(),
-                // Espaço extra no final para garantir que nada fique escondido pelo menu
                 const SizedBox(height: 24),
               ],
             ),
@@ -354,7 +403,7 @@ class _ReportsScreenState extends State<ReportsScreen>
 
   Widget _buildAppBar() {
     return Container(
-      height: 120,
+      height: 60,
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: const BoxDecoration(
@@ -371,18 +420,6 @@ class _ReportsScreenState extends State<ReportsScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.analytics,
-              size: 20,
-              color: Colors.white,
-            ),
-          ),
           const SizedBox(height: 8),
           const Text(
             'Relatório de Saúde',
@@ -392,7 +429,6 @@ class _ReportsScreenState extends State<ReportsScreen>
               color: Colors.white,
             ),
           ),
-          // Nome do usuário removido conforme solicitado
         ],
       ),
     );
@@ -549,9 +585,7 @@ class _ReportsScreenState extends State<ReportsScreen>
                   ),
                 ],
               ),
-
               const SizedBox(height: 16),
-
               Row(
                 children: [
                   Expanded(
@@ -718,7 +752,7 @@ class _ReportsScreenState extends State<ReportsScreen>
     return ScaleTransition(
       scale: _chartAnimation,
       child: Card(
-        elevation: 3, // Elevação maior para destaque
+        elevation: 3,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -786,8 +820,6 @@ class _ReportsScreenState extends State<ReportsScreen>
                   ),
                 ],
               ),
-
-              // Descrição adicional para destacar o card de tendência
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(10),
@@ -812,7 +844,6 @@ class _ReportsScreenState extends State<ReportsScreen>
     );
   }
 
-  // Função adicional para descrição da tendência
   String _getTrendDescription(String trend) {
     switch (trend) {
       case 'increasing':
@@ -868,13 +899,11 @@ class _ReportsScreenState extends State<ReportsScreen>
                   ],
                 ),
                 const SizedBox(height: 12),
-
                 ...distribution.entries.map((entry) {
                   final category = entry.key;
                   final count = entry.value;
                   final percentage = (count / total * 100).round();
 
-                  // Determinar cor baseado na categoria
                   Color color = AppConstants.primaryColor;
                   String categoryName = 'Normal';
 
@@ -1097,7 +1126,6 @@ class _ReportsScreenState extends State<ReportsScreen>
     );
   }
 
- //PDF
   Widget _buildActionButtons() {
     return Column(
       children: [
@@ -1105,7 +1133,7 @@ class _ReportsScreenState extends State<ReportsScreen>
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: _isLoading || _reportData.isEmpty
-                ? null // Desabilitar se estiver carregando ou sem dados
+                ? null
                 : _generateAndSharePDF,
             icon: const Icon(Icons.picture_as_pdf, size: 18),
             label: const Text('Gerar PDF'),
@@ -1145,21 +1173,17 @@ class _ReportsScreenState extends State<ReportsScreen>
   }
 
   Future<void> _generateAndSharePDF() async {
-    // Mostrar indicador de progresso
     final loadingOverlay = _showLoadingOverlay(context);
 
     try {
-      // Verificar se temos usuário e dados de relatório
       if (_user == null || _reportData.isEmpty) {
         _hideLoadingOverlay(loadingOverlay);
         _showErrorMessage('Dados insuficientes para gerar o relatório');
         return;
       }
 
-      // Obter o label do período selecionado
       final periodLabel = _periods[_selectedPeriod] ?? 'Período personalizado';
 
-      // Gerar o PDF usando o serviço
       final pdfService = ReportPdfService();
       final pdfPath = await pdfService.generateHealthReport(
         user: _user!,
@@ -1168,25 +1192,16 @@ class _ReportsScreenState extends State<ReportsScreen>
         periodLabel: periodLabel,
       );
 
-      // Esconder o indicador de progresso
       _hideLoadingOverlay(loadingOverlay);
-
-      // Compartilhar o PDF
       await pdfService.sharePdf(pdfPath);
 
     } catch (e, stackTrace) {
-      // Log do erro
       AppConstants.logError('Erro ao gerar PDF', e, stackTrace);
-
-      // Esconder o indicador de progresso
       _hideLoadingOverlay(loadingOverlay);
-
-      // Mostrar mensagem de erro
       _showErrorMessage('Ocorreu um erro ao gerar o PDF');
     }
   }
 
-// Mostra um overlay de carregamento
   OverlayEntry _showLoadingOverlay(BuildContext context) {
     final overlay = OverlayEntry(
       builder: (context) => Container(
@@ -1221,12 +1236,10 @@ class _ReportsScreenState extends State<ReportsScreen>
     return overlay;
   }
 
-// Esconde o overlay de carregamento
   void _hideLoadingOverlay(OverlayEntry overlay) {
     overlay.remove();
   }
 
-// Mostra mensagem de erro
   void _showErrorMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
