@@ -38,59 +38,59 @@ class AppConstants {
   // Fonte: https://www.gov.br/conitec/pt-br/midias/protocolos/pcdt-hipertensao-arterial-sistemica.pdf
   static const Map<String, Map<String, dynamic>> pressureCategories = {
     'hypotension': {
-      'name': 'Hipotensão',
+      'name': 'Baixa',  // ✅ ENCURTADO: era "Hipotensão"
       'description': 'Pressão arterial baixa - pode causar sintomas',
-      'systolicMax': 90,      // PAS < 90
-      'diastolicMax': 60,     // PAD < 60
-      'color': Color(0xFF6366F1), // Índigo/Roxo claro
+      'systolicMax': 90,
+      'diastolicMax': 60,
+      'color': Color(0xFF6366F1),
       'priority': 0,
     },
     'optimal': {
       'name': 'Ótima',
       'description': 'Pressão arterial ótima',
-      'systolicMax': 120,     // PAS < 120
-      'diastolicMax': 80,     // PAD < 80
-      'color': Color(0xFF10B981), // Verde
+      'systolicMax': 120,
+      'diastolicMax': 80,
+      'color': Color(0xFF10B981),
       'priority': 1,
     },
     'normal': {
       'name': 'Normal',
       'description': 'Pressão arterial normal',
-      'systolicMax': 129,     // PAS 120-129
-      'diastolicMax': 84,     // PAD 80-84
-      'color': Color(0xFF3B82F6), // Azul
+      'systolicMax': 129,
+      'diastolicMax': 84,
+      'color': Color(0xFF3B82F6),
       'priority': 2,
     },
     'elevated': {
-      'name': 'Normal Alta',
+      'name': 'Alta Normal',  // ✅ ENCURTADO: era "Normal Alta"
       'description': 'Pressão arterial normal alta',
-      'systolicMax': 139,     // PAS 130-139
-      'diastolicMax': 89,     // PAD 85-89
-      'color': Color(0xFFF59E0B), // Amarelo/Laranja
+      'systolicMax': 139,
+      'diastolicMax': 89,
+      'color': Color(0xFFF59E0B),
       'priority': 3,
     },
     'high_stage1': {
-      'name': 'Hipertensão Grau 1',
+      'name': 'Hipertensão 1',  // ✅ ENCURTADO: era "Hipertensão Grau 1"
       'description': 'Hipertensão arterial grau 1',
-      'systolicMax': 159,     // PAS 140-159
-      'diastolicMax': 99,     // PAD 90-99
-      'color': Color(0xFFEF4444), // Vermelho claro
+      'systolicMax': 159,
+      'diastolicMax': 99,
+      'color': Color(0xFFEF4444),
       'priority': 4,
     },
     'high_stage2': {
-      'name': 'Hipertensão Grau 2',
+      'name': 'Hipertensão 2',  // ✅ ENCURTADO: era "Hipertensão Grau 2"
       'description': 'Hipertensão arterial grau 2',
-      'systolicMax': 179,     // PAS 160-179
-      'diastolicMax': 109,    // PAD 100-109
-      'color': Color(0xFFDC2626), // Vermelho escuro
+      'systolicMax': 179,
+      'diastolicMax': 109,
+      'color': Color(0xFFDC2626),
       'priority': 5,
     },
     'crisis': {
-      'name': 'Hipertensão Grau 3',
+      'name': 'Hipertensão 3',  // ✅ ENCURTADO: era "Hipertensão Grau 3"
       'description': 'Emergência hipertensiva - procure atendimento médico imediato',
-      'systolicMax': 999,     // PAS ≥ 180 (sem limite superior)
-      'diastolicMax': 999,    // PAD ≥ 110 (sem limite superior)
-      'color': Color(0xFF7C3AED), // Roxo
+      'systolicMax': 999,
+      'diastolicMax': 999,
+      'color': Color(0xFF7C3AED),
       'priority': 6,
     },
   };
