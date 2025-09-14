@@ -829,43 +829,7 @@ class ReportsWidgets {
   }
 
   static Map<String, dynamic> _getCategoryInfo(String category) {
-    switch (category) {
-      case 'optimal':
-        return {
-          'color': const Color(0xFF10B981),
-          'name': 'Ótima',
-        };
-      case 'normal':
-        return {
-          'color': const Color(0xFF3B82F6),
-          'name': 'Normal',
-        };
-      case 'elevated':
-        return {
-          'color': const Color(0xFFF59E0B),
-          'name': 'Elevada',
-        };
-      case 'high_stage1':
-        return {
-          'color': const Color(0xFFEF4444),
-          'name': 'Alta Estágio 1',
-        };
-      case 'high_stage2':
-        return {
-          'color': const Color(0xFFDC2626),
-          'name': 'Alta Estágio 2',
-        };
-      case 'crisis':
-        return {
-          'color': const Color(0xFF7C3AED),
-          'name': 'Crise',
-        };
-      default:
-        return {
-          'color': AppConstants.primaryColor,
-          'name': 'Normal',
-        };
-    }
+    return PressureClassifier.getCategoryData(category);
   }
 }
 
