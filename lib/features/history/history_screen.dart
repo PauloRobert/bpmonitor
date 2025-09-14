@@ -346,18 +346,6 @@ class _HistoryScreenState extends State<HistoryScreen>
           ),
         ],
       ),
-      floatingActionButton: AnimatedScale(
-        scale: _tabController.index == 0 ? 1.0 : 0.9,
-        duration: const Duration(milliseconds: 200),
-        child: FloatingActionButton(
-          heroTag: 'addMeasurementBtn',
-          onPressed: _navigateToAddMeasurement,
-          backgroundColor: AppConstants.primaryColor,
-          foregroundColor: Colors.white,
-          elevation: 4,
-          child: const Icon(Icons.add, size: 28),
-        ),
-      ),
     );
   }
 }

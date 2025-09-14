@@ -47,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen>
       AppConstants.logInfo('Carregando dados da tela principal');
 
       final user = await db.getUser();
-      final measurements = await db.getRecentMeasurements(limit: 3);
+      final measurements = await db.getRecentMeasurements(limit: 10);
       final weeklyData = await _calculateWeeklyAverage();
 
       if (!mounted) return; // NOVO: Verifica se widget ainda está montado
