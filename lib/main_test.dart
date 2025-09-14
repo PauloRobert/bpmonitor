@@ -4,8 +4,27 @@ import 'core/constants/app_constants.dart';
 import 'utils/app_router.dart';
 import 'features/splash/splash_screen.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'test/test_data_seeder.dart'; // <-- importe sua classe de testes
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // =========================
+  // Executa o TestDataSeeder
+  // =========================
+  final seeder = TestDataSeeder();
+
+  // Limpa o banco (opcional)
+  await seeder.clearAllMeasurements();
+
+  // Popula com 50 medições de teste
+  await seeder.populateMeasurements(count: 50);
+
+  AppConstants.logInfo('Banco populado automaticamente no launch');
+
+  // =========================
+  // Inicializa o app
+  // =========================
   runApp(
     const ProviderScope(
       child: BPMonitorApp(),
@@ -21,8 +40,6 @@ class BPMonitorApp extends StatelessWidget {
     return MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
-
-      // Localização
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -32,7 +49,6 @@ class BPMonitorApp extends StatelessWidget {
         Locale('pt', 'BR'),
       ],
       locale: const Locale('pt', 'BR'),
-
       theme: ThemeData(
         primarySwatch: _createMaterialColor(AppConstants.primaryColor),
         primaryColor: AppConstants.primaryColor,
@@ -48,42 +64,7 @@ class BPMonitorApp extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppConstants.primaryColor,
-            foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-            ),
-            textStyle: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-            borderSide: const BorderSide(color: AppConstants.primaryColor),
-          ),
-        ),
-        cardTheme: CardThemeData(
-          color: AppConstants.cardColor,
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-          ),
-        ),
       ),
-
-      // Sempre começa pelo SplashScreen
       home: const SplashScreen(),
       onGenerateRoute: AppRouter.generateRoute,
     );
@@ -107,7 +88,6 @@ class BPMonitorApp extends StatelessWidget {
         1,
       );
     }
-
     return MaterialColor(color.value, swatch);
   }
 }
