@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'core/constants/app_constants.dart';
-import 'utils/app_router.dart';
-import 'features/splash/splash_screen.dart';
+import '../core/constants/app_constants.dart';
+import '../utils/app_router.dart';
+import '../features/splash/splash_screen.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'test/test_data_seeder.dart'; // <-- importe sua classe de testes
+import 'test_data_seeder.dart'; // <-- importe sua classe de testes
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

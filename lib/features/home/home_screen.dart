@@ -1,4 +1,4 @@
-// home_screen.dart - MESMA INTERFACE, PERFORMANCE OTIMIZADA
+// home_screen.dart - VERSÃO FINAL OTIMIZADA
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../../core/constants/app_constants.dart';
@@ -28,23 +28,32 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   bool get wantKeepAlive => true;
 
-  final db = DatabaseService.instance;
+  final DatabaseService _db = DatabaseService.instance;
 
-  // MESMOS campos públicos/protegidos
+  // Estado da UI
   UserModel? _user;
   List<MeasurementModel> _recentMeasurements = [];
   Map<String, double> _weeklyAverage = {};
   bool _isLoading = true;
 
-  // NOVOS: Cache interno (não afeta API externa)
+  // Cache interno
   Map<String, double>? _cachedWeeklyAverage;
   DateTime? _lastCalculationDate;
   Timer? _refreshTimer;
+  Timer? _cacheCleanupTimer;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+    _schedulePeriodicCacheCleanup();
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    _cacheCleanupTimer?.cancel();
+    super.dispose();
   }
 
   // MESMA assinatura pública - SEM BREAKING CHANGES
@@ -53,99 +62,164 @@ class _HomeScreenState extends State<HomeScreen>
     _refreshDataWithDebounce();
   }
 
-  // OTIMIZADO: Execução paralela + cache
+  /// Carregamento principal de dados com verificações robustas
   Future<void> _loadData() async {
     try {
-      AppConstants.logInfo('Carregando dados da tela principal');
+      AppConstants.logInfo('Iniciando carregamento da HomeScreen');
 
-      // OTIMIZAÇÃO 1: Execução paralela ao invés de sequencial
-      final results = await Future.wait([
-        db.getUser(),
-        db.getRecentMeasurements(limit: 10),
-        _calculateWeeklyAverageWithCache(),
+      // Passo 1: Carrega dados básicos em paralelo
+      final basicResults = await Future.wait([
+        _db.getUser(),
+        _db.getRecentMeasurements(limit: 10),
       ]);
 
       if (!mounted) return;
 
+      // Passo 2: Atualiza estado com dados carregados
       setState(() {
-        _user = results[0] as UserModel?;
-        _recentMeasurements = results[1] as List<MeasurementModel>;
-        _weeklyAverage = results[2] as Map<String, double>;
+        _user = basicResults[0] as UserModel?;
+        _recentMeasurements = basicResults[1] as List<MeasurementModel>;
+      });
+
+      // Passo 3: Calcula média com dados já em memória
+      final weeklyAverage = await _calculateWeeklyAverageOptimized();
+
+      if (!mounted) return;
+
+      setState(() {
+        _weeklyAverage = weeklyAverage;
         _isLoading = false;
       });
 
-      AppConstants.logInfo('Dados carregados - Usuário: ${_user?.name}, Medições: ${_recentMeasurements.length}');
+      AppConstants.logInfo(
+          'HomeScreen carregada - Usuário: ${_user?.name}, '
+              'Medições recentes: ${_recentMeasurements.length}, '
+              'Média semanal: ${_weeklyAverage.isNotEmpty ? "calculada" : "vazia"}'
+      );
+
     } catch (e, stackTrace) {
-      AppConstants.logError('Erro ao carregar dados da home', e, stackTrace);
+      AppConstants.logError('Erro ao carregar HomeScreen', e, stackTrace);
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
+        _showErrorSnackBar('Erro ao carregar dados. Tente novamente.');
       }
     }
   }
 
-  // OTIMIZAÇÃO 2: Cache inteligente para média semanal
-  Future<Map<String, double>> _calculateWeeklyAverageWithCache() async {
+  /// Calcula média semanal usando dados em memória quando possível
+  Future<Map<String, double>> _calculateWeeklyAverageOptimized() async {
     final now = DateTime.now();
 
-    // Cache válido por 30 minutos
-    if (_cachedWeeklyAverage != null &&
-        _lastCalculationDate != null &&
-        now.difference(_lastCalculationDate!).inMinutes < 30) {
+    // Verifica cache válido (30 minutos)
+    if (_isCacheValid(now)) {
       AppConstants.logInfo('Usando cache da média semanal');
       return _cachedWeeklyAverage!;
     }
 
-    AppConstants.logInfo('Calculando nova média semanal');
-    final result = await _calculateWeeklyAverage();
-
-    _cachedWeeklyAverage = result;
-    _lastCalculationDate = now;
-
-    return result;
-  }
-
-  // MÉTODO ORIGINAL mantido para não quebrar
-  Future<Map<String, double>> _calculateWeeklyAverage() async {
     try {
-      final endDate = DateTime.now();
+      AppConstants.logInfo('Calculando nova média semanal');
+
+      final endDate = now;
       final startDate = endDate.subtract(const Duration(days: 7));
 
-      final measurements = await db.getMeasurementsInRange(startDate, endDate);
+      // Estratégia 1: Usar dados já carregados se suficientes
+      List<MeasurementModel> measurements = _filterRecentMeasurementsForWeek(startDate, endDate);
 
-      if (measurements.isEmpty) {
-        return {};
+      // Estratégia 2: Buscar no banco se dados insuficientes
+      if (measurements.length < 3 && _recentMeasurements.isNotEmpty) {
+        AppConstants.logInfo('Buscando dados adicionais no banco para média');
+        measurements = await _db.getMeasurementsInRange(startDate, endDate);
       }
 
-      double totalSystolic = 0;
-      double totalDiastolic = 0;
-      double totalHeartRate = 0;
+      final result = _calculateAverageFromMeasurements(measurements);
 
-      for (final measurement in measurements) {
-        totalSystolic += measurement.systolic;
-        totalDiastolic += measurement.diastolic;
-        totalHeartRate += measurement.heartRate;
-      }
+      // Atualiza cache
+      _cachedWeeklyAverage = result;
+      _lastCalculationDate = now;
 
-      final count = measurements.length;
-      return {
-        'systolic': totalSystolic / count,
-        'diastolic': totalDiastolic / count,
-        'heartRate': totalHeartRate / count,
-      };
+      AppConstants.logInfo('Média calculada com ${measurements.length} medições');
+      return result;
+
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao calcular média semanal', e, stackTrace);
       return {};
     }
   }
 
-  // OTIMIZAÇÃO 3: Debounce para refresh
+  /// Filtra medições recentes para última semana
+  List<MeasurementModel> _filterRecentMeasurementsForWeek(DateTime startDate, DateTime endDate) {
+    return _recentMeasurements.where((measurement) {
+      return measurement.measuredAt.isAfter(startDate) &&
+          measurement.measuredAt.isBefore(endDate);
+    }).toList();
+  }
+
+  /// Calcula estatísticas de uma lista de medições
+  Map<String, double> _calculateAverageFromMeasurements(List<MeasurementModel> measurements) {
+    if (measurements.isEmpty) {
+      return {};
+    }
+
+    double totalSystolic = 0;
+    double totalDiastolic = 0;
+    double totalHeartRate = 0;
+
+    for (final measurement in measurements) {
+      totalSystolic += measurement.systolic;
+      totalDiastolic += measurement.diastolic;
+      totalHeartRate += measurement.heartRate;
+    }
+
+    final count = measurements.length;
+    return {
+      'systolic': totalSystolic / count,
+      'diastolic': totalDiastolic / count,
+      'heartRate': totalHeartRate / count,
+    };
+  }
+
+  /// Verifica se cache é válido
+  bool _isCacheValid(DateTime now) {
+    return _cachedWeeklyAverage != null &&
+        _lastCalculationDate != null &&
+        now.difference(_lastCalculationDate!).inMinutes < 30;
+  }
+
+  /// Refresh com debounce para evitar múltiplas chamadas
   void _refreshDataWithDebounce() {
     _refreshTimer?.cancel();
     _refreshTimer = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) _refreshData();
+      if (mounted) {
+        _invalidateCache();
+        _refreshData();
+      }
     });
+  }
+
+  /// Invalida cache quando dados mudam
+  void _invalidateCache() {
+    _cachedWeeklyAverage = null;
+    _lastCalculationDate = null;
+    AppConstants.logInfo('Cache da média semanal invalidado');
+  }
+
+  /// Limpeza periódica de cache
+  void _schedulePeriodicCacheCleanup() {
+    _cacheCleanupTimer = Timer.periodic(const Duration(hours: 1), (timer) {
+      if (mounted && _lastCalculationDate != null) {
+        final now = DateTime.now();
+        if (now.difference(_lastCalculationDate!).inHours > 2) {
+          _invalidateCache();
+          AppConstants.logInfo('Cache limpo automaticamente');
+        }
+      }
+    });
+  }
+
+  Future<void> _refreshData() async {
+    if (mounted) {
+      await _loadData();
+    }
   }
 
   String _getGreeting() {
@@ -155,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen>
     return 'Boa noite';
   }
 
-  // MESMAS assinaturas de navegação - SEM BREAKING CHANGES
+  /// Navegação para adicionar medição
   void _navigateToAddMeasurement() async {
     AppConstants.logNavigation('HomeScreen', 'AddMeasurementScreen');
 
@@ -166,40 +240,51 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     if (result == true) {
-      _refreshDataWithDebounce(); // Usa versão otimizada
+      _invalidateCache(); // Invalida cache pois dados podem ter mudado
+      _refreshDataWithDebounce();
     }
   }
 
+  /// Navegação para histórico
   void _navigateToHistory() async {
     AppConstants.logNavigation('HomeScreen', 'HistoryScreen');
 
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const HistoryScreen(),
+        settings: const RouteSettings(
+          arguments: {'forceRefresh': true}, // Força refresh
+      ),
       ),
     );
 
     if (result == true) {
-      _refreshDataWithDebounce(); // Usa versão otimizada
+      _invalidateCache(); // Invalida cache pois dados podem ter mudado
+      _refreshDataWithDebounce();
     }
   }
 
-  Future<void> _refreshData() async {
-    if (mounted) {
-      await _loadData();
-    }
+  /// Mostra mensagem de erro
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white, size: 20),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: AppConstants.dangerColor,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
-  @override
-  void dispose() {
-    _refreshTimer?.cancel(); // NOVO: Limpar timer
-    super.dispose();
-  }
-
-  // MESMA estrutura de build - SEM BREAKING CHANGES
   @override
   Widget build(BuildContext context) {
-    super.build(context);
+    super.build(context); // Necessário para AutomaticKeepAliveClientMixin
 
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
@@ -209,15 +294,16 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // OTIMIZAÇÃO 4: Widget const estático
-  static const Widget _loadingIndicator = CircularProgressIndicator(
-    color: AppConstants.primaryColor,
-  );
-
+  /// Estado de carregamento otimizado
   Widget _buildLoadingState() {
-    return const Center(child: _loadingIndicator);
+    return const Center(
+      child: CircularProgressIndicator(
+        color: AppConstants.primaryColor,
+      ),
+    );
   }
 
+  /// Conteúdo principal
   Widget _buildContent() {
     return RefreshIndicator(
       onRefresh: _refreshData,
@@ -239,6 +325,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Header com saudação e informações do usuário
   Widget _buildHeader() {
     final userName = _user?.name ?? 'Usuário';
     final age = _user?.age ?? 0;
@@ -286,6 +373,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Card de média semanal
   Widget _buildWeeklyAverageCard() {
     return Card(
       elevation: 2,
@@ -325,6 +413,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Mensagem quando não há dados
   Widget _buildNoDataMessage() {
     return Center(
       child: Padding(
@@ -361,11 +450,13 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Dados da média calculada
   Widget _buildAverageData() {
     final systolic = _weeklyAverage['systolic']!.round();
     final diastolic = _weeklyAverage['diastolic']!.round();
     final heartRate = _weeklyAverage['heartRate']!.round();
 
+    // Cria medição temporária para classificação
     final tempMeasurement = MeasurementModel(
       systolic: systolic,
       diastolic: diastolic,
@@ -409,7 +500,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // OTIMIZAÇÃO 5: Widget const para divisor
+  /// Divisor vertical
   Widget _buildVerticalDivider() {
     return Container(
       width: 1,
@@ -418,6 +509,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Coluna de métrica individual
   Widget _buildMetricColumn(String label, String value, String unit) {
     return Column(
       children: [
@@ -448,6 +540,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Seção de medições recentes
   Widget _buildRecentMeasurementsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -483,6 +576,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Estado quando não há medições recentes
   Widget _buildNoRecentMeasurements() {
     return Card(
       elevation: 1,
@@ -523,16 +617,16 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  // OTIMIZAÇÃO 6: ListView mais eficiente
+  /// Lista de medições otimizada
   Widget _buildMeasurementsList() {
-    return ListView.builder( // Mudou de separated para builder
+    return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _recentMeasurements.length * 2 - 1, // Para incluir separadores
-      cacheExtent: 100, // Cache para performance
+      itemCount: _recentMeasurements.length * 2 - 1,
+      cacheExtent: 100,
       itemBuilder: (context, index) {
         if (index.isOdd) {
-          return const SizedBox(height: 8); // Separador
+          return const SizedBox(height: 8);
         }
 
         final measurementIndex = index ~/ 2;
@@ -541,6 +635,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Card individual de medição
   Widget _buildMeasurementCard(MeasurementModel measurement) {
     return Card(
       elevation: 1,

@@ -24,7 +24,7 @@ class _HistoryScreenState extends State<HistoryScreen>
     implements HistoryScreenController {
 
   @override
-  bool get wantKeepAlive => true; // NOVO: Mantém estado ao voltar
+  bool get wantKeepAlive => true;
 
   late TabController _tabController;
   final db = DatabaseService.instance;
@@ -50,7 +50,11 @@ class _HistoryScreenState extends State<HistoryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadMeasurementsOptimized();
+
+    // Sempre carrega dados frescos
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadMeasurementsOptimized(); // Nome correto do método
+    });
   }
 
   @override
