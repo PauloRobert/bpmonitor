@@ -49,11 +49,21 @@ class _HistoryScreenState extends State<HistoryScreen>
   @override
   void initState() {
     super.initState();
+
     _tabController = TabController(length: 2, vsync: this);
 
-    // Sempre carrega dados frescos
+    // Carrega dados ao abrir
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadMeasurementsOptimized(); // Nome correto do método
+      _loadMeasurementsOptimized();
+    });
+
+    // 🔥 NOVO: Recarrega sempre que o usuário volta para a aba "Histórico"
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) return;
+      if (_tabController.index == 0) {
+        // Aba "Lista" (Histórico) selecionada
+        _loadMeasurementsWithDebounce();
+      }
     });
   }
 

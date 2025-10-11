@@ -1,12 +1,5 @@
 /// ============================================================================
-/// Migrations
-/// ============================================================================
-/// - Define as versões do schema do banco de dados.
-/// - Cada entrada no mapa `_migrations` representa uma versão do DB
-///   com as alterações necessárias (CREATE TABLE, ALTER TABLE, índices, etc).
-/// - `runMigrations`: executado em `onCreate` (primeira vez).
-/// - `upgradeMigrations`: executado em `onUpgrade` (quando versão do app aumenta).
-/// - Mantém o banco evolutivo, seguro e retrocompatível.
+/// Migrations - ATUALIZADO COM NOVOS CAMPOS
 /// ============================================================================
 import 'package:sqflite/sqflite.dart';
 import '../constants/app_constants.dart';
@@ -16,16 +9,21 @@ typedef Migration = Future<void> Function(DatabaseExecutor db);
 
 final Map<int, Migration> _migrations = {
   1: (db) async {
+    // Tabela de usuários COM NOVOS CAMPOS
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.usersTable} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         birth_date TEXT NOT NULL,
+        gender TEXT NOT NULL,
+        weight REAL NOT NULL,
+        height REAL NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       )
     ''');
 
+    // Tabela de medições (mantida igual)
     await db.execute('''
       CREATE TABLE IF NOT EXISTS ${AppConstants.measurementsTable} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,12 +40,23 @@ final Map<int, Migration> _migrations = {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_measurements_measured_at ON ${AppConstants.measurementsTable}(measured_at)');
   },
 
-  // Exemplo de migration futura
+  // Migration para adicionar os novos campos em bancos existentes
   2: (db) async {
-    final exists = await columnExists(db, AppConstants.measurementsTable, 'user_id');
-    if (!exists) {
-      await db.execute('ALTER TABLE ${AppConstants.measurementsTable} ADD COLUMN user_id INTEGER');
-      await db.execute('CREATE INDEX IF NOT EXISTS idx_measurements_user_id ON ${AppConstants.measurementsTable}(user_id)');
+    // Verifica se os campos já existem antes de adicionar
+    final genderExists = await columnExists(db, AppConstants.usersTable, 'gender');
+    final weightExists = await columnExists(db, AppConstants.usersTable, 'weight');
+    final heightExists = await columnExists(db, AppConstants.usersTable, 'height');
+
+    if (!genderExists) {
+      await db.execute('ALTER TABLE ${AppConstants.usersTable} ADD COLUMN gender TEXT NOT NULL DEFAULT "M"');
+    }
+
+    if (!weightExists) {
+      await db.execute('ALTER TABLE ${AppConstants.usersTable} ADD COLUMN weight REAL NOT NULL DEFAULT 70.0');
+    }
+
+    if (!heightExists) {
+      await db.execute('ALTER TABLE ${AppConstants.usersTable} ADD COLUMN height REAL NOT NULL DEFAULT 1.70');
     }
   },
 };
