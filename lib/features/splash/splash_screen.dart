@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
 import '../../utils/app_router.dart';
@@ -15,29 +16,38 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    // CORREÇÃO: Operação mínima, sem animações
-    _navigateAfterDelay();
+    // Remove a status bar para uma transição mais limpa
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
+    // Inicia a navegação imediatamente
+    _navigateAfterMinimalDelay();
   }
 
-  Future<void> _navigateAfterDelay() async {
-    // Aguarda apenas 500ms para mostrar o logo
-    await Future.delayed(const Duration(milliseconds: 500));
+  Future<void> _navigateAfterMinimalDelay() async {
+    // Tempo mínimo para evitar flash, mas mantém a performance
+    const minDisplayTime = Duration(milliseconds: 300);
 
-    if (!mounted) return;
+    // Inicia as operações em paralelo
+    final futures = await Future.wait([
+      Future.delayed(minDisplayTime),
+      _checkOnboardingStatus(),
+    ]);
 
-    // Verificação rápida apenas de SharedPreferences
+    final route = futures[1] as String;
+
+    if (mounted) {
+      // Restaura a UI do sistema antes de navegar
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      Navigator.of(context).pushReplacementNamed(route);
+    }
+  }
+
+  Future<String> _checkOnboardingStatus() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final isComplete = prefs.getBool(AppConstants.onboardingCompleteKey) ?? false;
-      final route = isComplete ? AppRouter.main : AppRouter.onboarding;
-
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed(route);
-      }
+      return isComplete ? AppRouter.main : AppRouter.onboarding;
     } catch (e) {
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed(AppRouter.onboarding);
-      }
+      return AppRouter.onboarding;
     }
   }
 
@@ -71,5 +81,12 @@ class _SplashScreenState extends State<SplashScreen> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    // Garante que a UI do sistema seja restaurada
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    super.dispose();
   }
 }
