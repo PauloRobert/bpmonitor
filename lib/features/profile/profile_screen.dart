@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_service.dart';
 import '../../shared/models/user_model.dart';
+import 'package:flutter/services.dart';
+
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -15,6 +17,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _birthDateController = TextEditingController();
+  // ✅ NOVO: controladores para peso e altura
+  final TextEditingController _weightController = TextEditingController();
+  final TextEditingController _heightController = TextEditingController();
+  String _selectedGender = 'M';
+
 
   UserModel? _currentUser;
   bool _isLoading = true;
@@ -58,6 +65,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     _animationController.dispose();
     _nameController.dispose();
     _birthDateController.dispose();
+    // ✅ NOVOS
+    _weightController.dispose();
+    _heightController.dispose();
     super.dispose();
   }
 
@@ -65,13 +75,22 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     try {
       setState(() => _isLoading = true);
       final user = await db.getUser();
+
       if (user != null) {
         setState(() {
           _currentUser = user;
           _nameController.text = user.name;
           _birthDateController.text = user.birthDate;
+
+          // ✅ Novos campos
+          _selectedGender = user.gender;
+          _weightController.text =
+              user.weight.toStringAsFixed(1).replaceAll('.', ',');
+          _heightController.text =
+              user.height.toStringAsFixed(2).replaceAll('.', ',');
         });
-        // 👇 coloca aqui para inspecionar o valor vindo do banco
+
+        // mantém o debug opcional
         debugPrint("[BP_MONITOR] [DEBUG] CreatedAt do usuário: ${user.createdAt.toIso8601String()}");
         debugPrint("[BP_MONITOR] [DEBUG] Dias de uso calculado: ${DateTime.now().difference(user.createdAt).inDays}");
 
@@ -120,13 +139,21 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     setState(() => _isSaving = true);
 
     try {
+      // Converte os campos de texto em números
+      final weight = double.parse(_weightController.text.replaceAll(',', '.'));
+      final height = double.parse(_heightController.text.replaceAll(',', '.'));
+
       final updatedUser = _currentUser!.copyWith(
         name: _nameController.text.trim(),
         birthDate: _birthDateController.text,
+        gender: _selectedGender,  // ✅ Novo
+        weight: weight,           // ✅ Novo
+        height: height,           // ✅ Novo
         updatedAt: DateTime.now(),
       );
 
       await db.updateUser(updatedUser);
+
       setState(() {
         _currentUser = updatedUser;
         _isEditing = false;
@@ -140,12 +167,22 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     }
   }
 
+
   void _toggleEdit() {
     setState(() {
       if (_isEditing) {
+        // Se estava editando e cancelou, restaura os valores originais
         _nameController.text = _currentUser!.name;
         _birthDateController.text = _currentUser!.birthDate;
+        _selectedGender = _currentUser!.gender; // ✅ Novo
+        _weightController.text = _currentUser!.weight
+            .toStringAsFixed(1)
+            .replaceAll('.', ',');            // ✅ Novo
+        _heightController.text = _currentUser!.height
+            .toStringAsFixed(2)
+            .replaceAll('.', ',');            // ✅ Novo
       }
+
       _isEditing = !_isEditing;
     });
   }
@@ -270,14 +307,13 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       automaticallyImplyLeading: false,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
-          decoration: const BoxDecoration(
-            gradient: AppConstants.splashGradient,
-          ),
+          decoration: const BoxDecoration(gradient: AppConstants.splashGradient),
           child: SafeArea(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
+                // Avatar com primeira letra do nome
                 Container(
                   width: 80,
                   height: 80,
@@ -288,7 +324,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   ),
                   child: Center(
                     child: Text(
-                      _currentUser!.name.isNotEmpty
+                      _currentUser != null && _currentUser!.name.isNotEmpty
                           ? _currentUser!.name[0].toUpperCase()
                           : '?',
                       style: const TextStyle(
@@ -300,8 +336,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   ),
                 ),
                 const SizedBox(height: 12),
+                // Nome completo
                 Text(
-                  _currentUser!.name,
+                  _currentUser?.name ?? '',
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -309,8 +346,9 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   ),
                 ),
                 const SizedBox(height: 4),
+                // Idade
                 Text(
-                  '${_currentUser!.age} anos',
+                  _currentUser != null ? '${_currentUser!.age} anos' : '',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.white.withOpacity(0.9),
@@ -342,6 +380,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Cabeçalho
             Row(
               children: [
                 Container(
@@ -364,6 +403,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               ],
             ),
             const SizedBox(height: 20),
+
+            // Nome
             TextFormField(
               controller: _nameController,
               enabled: _isEditing,
@@ -381,6 +422,8 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               },
             ),
             const SizedBox(height: 16),
+
+            // Data de nascimento
             TextFormField(
               controller: _birthDateController,
               enabled: _isEditing,
@@ -399,12 +442,264 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 return null;
               },
             ),
+
+            // ✅ Informações extras somente leitura
+            if (!_isEditing && _currentUser != null) ...[
+              const SizedBox(height: 20),
+              _buildInfoRow(Icons.wc, 'Sexo', _currentUser!.genderName),
+              const Divider(height: 24),
+              _buildInfoRow(Icons.monitor_weight, 'Peso', _currentUser!.weightFormatted),
+              const Divider(height: 24),
+              _buildInfoRow(Icons.height, 'Altura', _currentUser!.heightFormatted),
+              const Divider(height: 24),
+              _buildInfoRow(Icons.analytics, 'IMC', _currentUser!.bmiFormatted),
+            ],
+
+            // ✅ Campos editáveis
+            if (_isEditing) ...[
+              const SizedBox(height: 16),
+              // Seletor de gênero
+              _buildGenderSelector(),
+              const SizedBox(height: 16),
+              // Peso
+              TextFormField(
+                controller: _weightController,
+                enabled: _isEditing,
+                decoration: const InputDecoration(
+                  labelText: 'Peso (kg)',
+                  prefixIcon: Icon(Icons.monitor_weight),
+                  suffixText: 'kg',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
+                  TextInputFormatter.withFunction((oldValue, newValue) {
+                    String text = newValue.text.replaceAll('.', ',');
+                    if (text.split(',').length > 2) return oldValue;
+                    if (text.contains(',')) {
+                      final parts = text.split(',');
+                      if (parts[1].length > 1) {
+                        text = '${parts[0]},${parts[1].substring(0, 1)}';
+                      }
+                    }
+                    return TextEditingValue(
+                      text: text,
+                      selection: TextSelection.collapsed(offset: text.length),
+                    );
+                  }),
+                ],
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Peso é obrigatório';
+                  final weight = double.tryParse(value.replaceAll(',', '.'));
+                  if (weight == null) return 'Valor inválido';
+                  if (weight < AppConstants.minWeight || weight > AppConstants.maxWeight) {
+                    return 'Peso deve estar entre ${AppConstants.minWeight}kg e ${AppConstants.maxWeight}kg';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              // Altura
+              TextFormField(
+                controller: _heightController,
+                enabled: _isEditing,
+                decoration: const InputDecoration(
+                  labelText: 'Altura (m)',
+                  prefixIcon: Icon(Icons.height),
+                  suffixText: 'm',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
+                  TextInputFormatter.withFunction((oldValue, newValue) {
+                    String text = newValue.text.replaceAll('.', ',');
+                    if (text.split(',').length > 2) return oldValue;
+                    if (text.contains(',')) {
+                      final parts = text.split(',');
+                      if (parts[1].length > 2) {
+                        text = '${parts[0]},${parts[1].substring(0, 2)}';
+                      }
+                    }
+                    return TextEditingValue(
+                      text: text,
+                      selection: TextSelection.collapsed(offset: text.length),
+                    );
+                  }),
+                ],
+                validator: (value) {
+                  if (value == null || value.isEmpty) return 'Altura é obrigatória';
+                  final height = double.tryParse(value.replaceAll(',', '.'));
+                  if (height == null) return 'Valor inválido';
+                  if (height < AppConstants.minHeight || height > AppConstants.maxHeight) {
+                    return 'Altura deve estar entre ${AppConstants.minHeight}m e ${AppConstants.maxHeight}m';
+                  }
+                  return null;
+                },
+              ),
+              // Preview do IMC
+              if (_weightController.text.isNotEmpty && _heightController.text.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                _buildBMIPreview(),
+              ],
+            ],
+
+            // Idade (apenas leitura)
             if (!_isEditing) _buildAgeInfo(),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: AppConstants.textSecondary),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              color: AppConstants.textSecondary,
+            ),
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppConstants.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGenderSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Sexo',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: AppConstants.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: _buildGenderOption('M', Icons.male, 'Masculino')),
+            const SizedBox(width: 12),
+            Expanded(child: _buildGenderOption('F', Icons.female, 'Feminino')),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGenderOption(String gender, IconData icon, String label) {
+    final isSelected = _selectedGender == gender;
+
+    return InkWell(
+      onTap: _isEditing
+          ? () {
+        setState(() {
+          _selectedGender = gender;
+        });
+      }
+          : null,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppConstants.primaryColor.withOpacity(0.1)
+              : Colors.grey.shade100,
+          border: Border.all(
+            color: isSelected ? AppConstants.primaryColor : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? AppConstants.primaryColor : AppConstants.textSecondary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? AppConstants.primaryColor : AppConstants.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  Widget _buildBMIPreview() {
+    final weight = double.tryParse(_weightController.text.replaceAll(',', '.'));
+    final height = double.tryParse(_heightController.text.replaceAll(',', '.'));
+
+    if (weight == null || height == null || height <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    final bmi = AppConstants.calculateBMI(weight, height);
+    final category = AppConstants.getBMICategory(bmi);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppConstants.successColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppConstants.successColor.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.analytics, size: 20, color: AppConstants.successColor),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Seu IMC',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppConstants.textSecondary,
+                  ),
+                ),
+                Text(
+                  '${bmi.toStringAsFixed(1)} - $category',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.successColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Widget _buildAgeInfo() {
     return Column(

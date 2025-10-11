@@ -12,7 +12,7 @@ class AppConstants {
 
   // Database
   static const String databaseName = 'bp_monitor.db';
-  static const int databaseVersion = 1;
+  static const int databaseVersion = 2;
 
   // Tabelas
   static const String measurementsTable = 'measurements';
@@ -94,6 +94,45 @@ class AppConstants {
       'priority': 6,
     },
   };
+
+  //novos campos
+  // ✅ NOVO: Validações de dados físicos
+  static const double minWeight = 30.0;  // kg
+  static const double maxWeight = 300.0; // kg
+  static const double minHeight = 0.50;  // metros
+  static const double maxHeight = 2.50;  // metros
+
+  // ✅ NOVO: Opções de sexo
+  static const Map<String, String> genderOptions = {
+    'M': 'Masculino',
+    'F': 'Feminino',
+  };
+
+  // ✅ NOVO: Mensagens de validação
+  static const String validationGenderError = 'Por favor, selecione seu sexo';
+  static const String validationWeightError = 'Por favor, informe seu peso';
+  static const String validationWeightRangeError = 'Peso deve estar entre 30kg e 300kg';
+  static const String validationHeightError = 'Por favor, informe sua altura';
+  static const String validationHeightRangeError = 'Altura deve estar entre 0,50m e 2,50m';
+
+  // ✅ NOVO: Cálculo de IMC (útil para futuras features)
+  static double calculateBMI(double weight, double height) {
+    if (height <= 0) return 0;
+    return weight / (height * height);
+  }
+
+  static String getBMICategory(double bmi) {
+    if (bmi < 18.5) return 'Abaixo do peso';
+    if (bmi < 25) return 'Peso normal';
+    if (bmi < 30) return 'Sobrepeso';
+    if (bmi < 35) return 'Obesidade grau I';
+    if (bmi < 40) return 'Obesidade grau II';
+    return 'Obesidade grau III';
+  }
+  //novos campos
+
+
+
 
   // Cores do App
   static const Color primaryColor = Color(0xFF2563EB);
