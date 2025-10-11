@@ -1,10 +1,13 @@
 import '../../core/constants/app_constants.dart';
 
-/// Modelo de dados do usuário
+/// Modelo de dados do usuário - ATUALIZADO COM NOVOS CAMPOS
 class UserModel {
   final int? id;
   final String name;
-  final String birthDate; // armazenado como String (ISO8601 ou "yyyy-MM-dd")
+  final String birthDate;
+  final String gender;      // ✅ NOVO: 'M' ou 'F'
+  final double weight;      // ✅ NOVO: peso em kg (1 decimal)
+  final double height;      // ✅ NOVO: altura em metros (2 decimais)
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -12,6 +15,9 @@ class UserModel {
     this.id,
     required this.name,
     required this.birthDate,
+    required this.gender,
+    required this.weight,
+    required this.height,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
@@ -22,6 +28,9 @@ class UserModel {
       : id = null,
         name = '',
         birthDate = '',
+        gender = 'M',
+        weight = 70.0,
+        height = 1.70,
         createdAt = DateTime.now(),
         updatedAt = DateTime.now();
 
@@ -61,16 +70,38 @@ class UserModel {
     }
   }
 
+  /// ✅ NOVO: Getter para nome do sexo
+  String get genderName => AppConstants.genderOptions[gender] ?? 'Não informado';
+
+  /// ✅ NOVO: Getter para peso formatado
+  String get weightFormatted => '${weight.toStringAsFixed(1)} kg';
+
+  /// ✅ NOVO: Getter para altura formatada
+  String get heightFormatted => '${height.toStringAsFixed(2)} m';
+
+  /// ✅ NOVO: Getter para IMC
+  double get bmi => AppConstants.calculateBMI(weight, height);
+
+  /// ✅ NOVO: Getter para categoria do IMC
+  String get bmiCategory => AppConstants.getBMICategory(bmi);
+
+  /// ✅ NOVO: Getter para IMC formatado
+  String get bmiFormatted => '${bmi.toStringAsFixed(1)} - $bmiCategory';
+
   /// Verifica se os dados do usuário estão válidos
   bool get isValid {
     final nameValid = name.trim().isNotEmpty;
     final birthDateValid = birthDate.isNotEmpty;
     final ageValid = age >= 10 && age <= 120;
+    final genderValid = AppConstants.genderOptions.containsKey(gender);
+    final weightValid = weight >= AppConstants.minWeight && weight <= AppConstants.maxWeight;
+    final heightValid = height >= AppConstants.minHeight && height <= AppConstants.maxHeight;
 
     AppConstants.logInfo(
-        'Validação do usuário: name=$nameValid, birthDate=$birthDateValid, age=$ageValid (${age} anos)');
+        'Validação do usuário: name=$nameValid, birthDate=$birthDateValid, age=$ageValid, '
+            'gender=$genderValid, weight=$weightValid, height=$heightValid');
 
-    return nameValid && birthDateValid && ageValid;
+    return nameValid && birthDateValid && ageValid && genderValid && weightValid && heightValid;
   }
 
   /// Converte de Map para UserModel (vindo do database)
@@ -82,6 +113,9 @@ class UserModel {
         id: map['id'] as int?,
         name: map['name'] as String? ?? '',
         birthDate: map['birth_date'] as String? ?? '',
+        gender: map['gender'] as String? ?? 'M',
+        weight: (map['weight'] as num?)?.toDouble() ?? 70.0,
+        height: (map['height'] as num?)?.toDouble() ?? 1.70,
         createdAt: DateTime.parse(map['created_at'] as String),
         updatedAt: DateTime.parse(map['updated_at'] as String),
       );
@@ -97,6 +131,9 @@ class UserModel {
       final Map<String, dynamic> map = {
         'name': name,
         'birth_date': birthDate,
+        'gender': gender,
+        'weight': weight,
+        'height': height,
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
       };
@@ -118,6 +155,9 @@ class UserModel {
     int? id,
     String? name,
     String? birthDate,
+    String? gender,
+    double? weight,
+    double? height,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -127,14 +167,19 @@ class UserModel {
       id: id ?? this.id,
       name: name ?? this.name,
       birthDate: birthDate ?? this.birthDate,
+      gender: gender ?? this.gender,
+      weight: weight ?? this.weight,
+      height: height ?? this.height,
       createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? DateTime.now(), // Sempre atualiza updatedAt
+      updatedAt: updatedAt ?? DateTime.now(),
     );
   }
 
   @override
   String toString() {
-    return 'UserModel(id: $id, name: $name, birthDate: $birthDate, age: $age, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'UserModel(id: $id, name: $name, birthDate: $birthDate, age: $age, '
+        'gender: $genderName, weight: $weightFormatted, height: $heightFormatted, '
+        'bmi: $bmiFormatted, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -145,6 +190,9 @@ class UserModel {
         other.id == id &&
         other.name == name &&
         other.birthDate == birthDate &&
+        other.gender == gender &&
+        other.weight == weight &&
+        other.height == height &&
         other.createdAt == createdAt &&
         other.updatedAt == updatedAt;
   }
@@ -154,6 +202,9 @@ class UserModel {
     return id.hashCode ^
     name.hashCode ^
     birthDate.hashCode ^
+    gender.hashCode ^
+    weight.hashCode ^
+    height.hashCode ^
     createdAt.hashCode ^
     updatedAt.hashCode;
   }

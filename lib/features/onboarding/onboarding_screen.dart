@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_service.dart';
@@ -16,9 +17,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final PageController _pageController = PageController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _birthDateController = TextEditingController();
+  final TextEditingController _weightController = TextEditingController();
+  final TextEditingController _heightController = TextEditingController();
 
   int _currentPage = 0;
   bool _isLoading = false;
+  String _selectedGender = 'M'; // ✅ NOVO: Sexo selecionado
 
   final db = DatabaseService.instance;
 
@@ -27,6 +31,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _pageController.dispose();
     _nameController.dispose();
     _birthDateController.dispose();
+    _weightController.dispose();
+    _heightController.dispose();
     super.dispose();
   }
 
@@ -64,11 +70,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
   }
 
-  // ✅ FIX: Implementação completa do onboarding com SharedPreferences
   Future<void> _completeOnboarding() async {
-    // Esconde o teclado se estiver aberto
     FocusScope.of(context).unfocus();
 
+    // Validações
     if (_nameController.text.trim().isEmpty) {
       _showError(AppConstants.validationNameError);
       return;
@@ -76,6 +81,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     if (_birthDateController.text.isEmpty) {
       _showError(AppConstants.validationBirthDateError);
+      return;
+    }
+
+    // ✅ NOVO: Validação de peso
+    final weight = double.tryParse(_weightController.text.replaceAll(',', '.'));
+    if (weight == null) {
+      _showError(AppConstants.validationWeightError);
+      return;
+    }
+    if (weight < AppConstants.minWeight || weight > AppConstants.maxWeight) {
+      _showError(AppConstants.validationWeightRangeError);
+      return;
+    }
+
+    // ✅ NOVO: Validação de altura
+    final height = double.tryParse(_heightController.text.replaceAll(',', '.'));
+    if (height == null) {
+      _showError(AppConstants.validationHeightError);
+      return;
+    }
+    if (height < AppConstants.minHeight || height > AppConstants.maxHeight) {
+      _showError(AppConstants.validationHeightRangeError);
       return;
     }
 
@@ -87,6 +114,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       final user = UserModel(
         name: _nameController.text.trim(),
         birthDate: _birthDateController.text,
+        gender: _selectedGender,
+        weight: weight,
+        height: height,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -99,11 +129,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return;
       }
 
-      // ✅ FIX: Salvar usuário no database
       await db.insertUser(user);
-      AppConstants.logInfo('Usuário salvo: ${user.name}, ${user.age} anos');
+      AppConstants.logInfo('Usuário salvo: ${user.name}, ${user.age} anos, ${user.genderName}, '
+          '${user.weightFormatted}, ${user.heightFormatted}, IMC: ${user.bmiFormatted}');
 
-      // ✅ FIX: CRÍTICO - Marcar onboarding como concluído
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(AppConstants.onboardingCompleteKey, true);
       AppConstants.logInfo('Onboarding marcado como concluído');
@@ -111,13 +140,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       AppConstants.logUserAction('complete_onboarding', {
         'userName': user.name,
         'userAge': user.age,
+        'gender': user.gender,
+        'bmi': user.bmi.toStringAsFixed(1),
       });
 
-      // Navegar para home se o widget ainda estiver montado
       if (mounted) {
         _navigateToHome();
       }
-
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao completar onboarding', e, stackTrace);
       _showError('Erro ao salvar dados. Tente novamente.');
@@ -151,6 +180,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   void _navigateToHome() {
     AppConstants.logNavigation('OnboardingScreen', 'MainNavigation');
     Navigator.of(context).pushReplacementNamed(AppRouter.main);
+  }
+
+  int _getAgeFromBirthDate() {
+    if (_birthDateController.text.isEmpty) return 0;
+
+    try {
+      final birth = DateTime.parse(_birthDateController.text);
+      final today = DateTime.now();
+      int age = today.year - birth.year;
+
+      if (today.month < birth.month ||
+          (today.month == birth.month && today.day < birth.day)) {
+        age--;
+      }
+
+      return age;
+    } catch (e) {
+      return 0;
+    }
   }
 
   @override
@@ -265,7 +313,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 40),
-            // ✅ FIX: Melhorar validação em tempo real
+
+            // Nome
             TextField(
               controller: _nameController,
               decoration: InputDecoration(
@@ -280,6 +329,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 20),
+
+            // Data de nascimento
             TextField(
               controller: _birthDateController,
               decoration: InputDecoration(
@@ -295,7 +346,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               readOnly: true,
               onTap: _selectBirthDate,
             ),
-            // ✅ FIX: Mostrar idade calculada
+
             if (_birthDateController.text.isNotEmpty) ...[
               const SizedBox(height: 16),
               Container(
@@ -325,40 +376,261 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
             ],
+
+            const SizedBox(height: 20),
+
+            // ✅ NOVO: Seletor de sexo
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.wc, color: AppConstants.primaryColor),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Sexo *',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: AppConstants.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildGenderOption('M', Icons.male),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildGenderOption('F', Icons.female),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // ✅ NOVO: Peso
+            TextField(
+              controller: _weightController,
+              decoration: const InputDecoration(
+                labelText: 'Peso (kg) *',
+                hintText: 'Ex: 70,5',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.monitor_weight),
+                suffixText: 'kg',
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
+                TextInputFormatter.withFunction((oldValue, newValue) {
+                  // Substitui ponto por vírgula
+                  String text = newValue.text.replaceAll('.', ',');
+                  // Permite apenas uma vírgula
+                  if (text.split(',').length > 2) {
+                    return oldValue;
+                  }
+                  // Limita decimais a 1 casa
+                  if (text.contains(',')) {
+                    final parts = text.split(',');
+                    if (parts[1].length > 1) {
+                      text = '${parts[0]},${parts[1].substring(0, 1)}';
+                    }
+                  }
+                  return TextEditingValue(
+                    text: text,
+                    selection: TextSelection.collapsed(offset: text.length),
+                  );
+                }),
+              ],
+              onChanged: (_) => setState(() {}),
+            ),
+
+            const SizedBox(height: 20),
+
+            // ✅ NOVO: Altura
+            TextField(
+              controller: _heightController,
+              decoration: const InputDecoration(
+                labelText: 'Altura (m) *',
+                hintText: 'Ex: 1,75',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.height),
+                suffixText: 'm',
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
+                TextInputFormatter.withFunction((oldValue, newValue) {
+                  String text = newValue.text.replaceAll('.', ',');
+                  if (text.split(',').length > 2) {
+                    return oldValue;
+                  }
+                  // Limita decimais a 2 casas
+                  if (text.contains(',')) {
+                    final parts = text.split(',');
+                    if (parts[1].length > 2) {
+                      text = '${parts[0]},${parts[1].substring(0, 2)}';
+                    }
+                  }
+                  return TextEditingValue(
+                    text: text,
+                    selection: TextSelection.collapsed(offset: text.length),
+                  );
+                }),
+              ],
+              onChanged: (_) => setState(() {}),
+            ),
+
+            // ✅ NOVO: Preview do IMC
+            if (_weightController.text.isNotEmpty && _heightController.text.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildBMIPreview(),
+            ],
           ],
         ),
       ),
     );
   }
 
-  // ✅ FIX: Método para calcular idade em tempo real
-  int _getAgeFromBirthDate() {
-    if (_birthDateController.text.isEmpty) return 0;
+  // ✅ NOVO: Widget para opção de sexo
+  Widget _buildGenderOption(String gender, IconData icon) {
+    final isSelected = _selectedGender == gender;
+    final genderName = AppConstants.genderOptions[gender]!;
 
-    try {
-      final birth = DateTime.parse(_birthDateController.text);
-      final today = DateTime.now();
-      int age = today.year - birth.year;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedGender = gender;
+        });
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppConstants.primaryColor.withOpacity(0.1)
+              : Colors.grey.shade100,
+          border: Border.all(
+            color: isSelected
+                ? AppConstants.primaryColor
+                : Colors.grey.shade300,
+            width: isSelected ? 2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 32,
+              color: isSelected
+                  ? AppConstants.primaryColor
+                  : AppConstants.textSecondary,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              genderName,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected
+                    ? AppConstants.primaryColor
+                    : AppConstants.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-      if (today.month < birth.month ||
-          (today.month == birth.month && today.day < birth.day)) {
-        age--;
-      }
+  // ✅ NOVO: Preview do IMC
+  Widget _buildBMIPreview() {
+    final weight = double.tryParse(_weightController.text.replaceAll(',', '.'));
+    final height = double.tryParse(_heightController.text.replaceAll(',', '.'));
 
-      return age;
-    } catch (e) {
-      return 0;
+    if (weight == null || height == null || height <= 0) {
+      return const SizedBox.shrink();
     }
+
+    final bmi = AppConstants.calculateBMI(weight, height);
+    final category = AppConstants.getBMICategory(bmi);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppConstants.successColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: AppConstants.successColor.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.analytics,
+            size: 20,
+            color: AppConstants.successColor,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Seu IMC',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppConstants.textSecondary,
+                  ),
+                ),
+                Text(
+                  '${bmi.toStringAsFixed(1)} - $category',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppConstants.successColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildBottomNavigation() {
     final isLastPage = _currentPage >= AppConstants.onboardingData.length;
     final isFirstPage = _currentPage == 0;
-    final canProceed = isLastPage
-        ? _nameController.text.trim().isNotEmpty &&
-        _birthDateController.text.isNotEmpty &&
-        _getAgeFromBirthDate() >= 10
-        : true;
+
+    bool canProceed = true;
+    if (isLastPage) {
+      final weight = double.tryParse(_weightController.text.replaceAll(',', '.'));
+      final height = double.tryParse(_heightController.text.replaceAll(',', '.'));
+
+      canProceed = _nameController.text.trim().isNotEmpty &&
+          _birthDateController.text.isNotEmpty &&
+          _getAgeFromBirthDate() >= 10 &&
+          weight != null &&
+          weight >= AppConstants.minWeight &&
+          weight <= AppConstants.maxWeight &&
+          height != null &&
+          height >= AppConstants.minHeight &&
+          height <= AppConstants.maxHeight;
+    }
 
     return Padding(
       padding: const EdgeInsets.all(24.0),
