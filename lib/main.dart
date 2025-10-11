@@ -83,7 +83,7 @@ class BPMonitorApp extends StatelessWidget {
         ),
       ),
 
-      // CORREÇÃO: Vai direto pro SplashScreen
+      // Sempre começa pelo SplashScreen
       home: const SplashScreen(),
       onGenerateRoute: AppRouter.generateRoute,
     );
@@ -107,6 +107,7 @@ class BPMonitorApp extends StatelessWidget {
         1,
       );
     }
+
     return MaterialColor(color.value, swatch);
   }
 }

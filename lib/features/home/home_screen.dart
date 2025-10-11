@@ -1,15 +1,20 @@
+// home_screen.dart - VERSÃO FINAL OTIMIZADA
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../../core/constants/app_constants.dart';
 import '../../core/database/database_service.dart';
 import '../../shared/models/user_model.dart';
 import '../../shared/models/measurement_model.dart';
 import '../measurements/add_measurement_screen.dart';
 import '../history/history_screen.dart';
+import '../../shared/widgets/main_navigation.dart';
 
+// MESMO abstract class - SEM BREAKING CHANGES
 abstract class HomeScreenController {
   void refreshData();
 }
 
+// MESMA classe pública - SEM BREAKING CHANGES
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -18,88 +23,203 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with AutomaticKeepAliveClientMixin // NOVO: Mantém estado ao trocar de aba
+    with AutomaticKeepAliveClientMixin
     implements HomeScreenController {
 
   @override
-  bool get wantKeepAlive => true; // NOVO: Evita recarregar ao trocar de aba
+  bool get wantKeepAlive => true;
 
-  final db = DatabaseService.instance;
+  final DatabaseService _db = DatabaseService.instance;
 
+  // Estado da UI
   UserModel? _user;
   List<MeasurementModel> _recentMeasurements = [];
   Map<String, double> _weeklyAverage = {};
   bool _isLoading = true;
 
+  // Cache interno
+  Map<String, double>? _cachedWeeklyAverage;
+  DateTime? _lastCalculationDate;
+  Timer? _refreshTimer;
+  Timer? _cacheCleanupTimer;
+
   @override
   void initState() {
     super.initState();
     _loadData();
+    _schedulePeriodicCacheCleanup();
   }
 
   @override
-  void refreshData() {
-    _refreshData();
+  void dispose() {
+    _refreshTimer?.cancel();
+    _cacheCleanupTimer?.cancel();
+    super.dispose();
   }
 
+  // MESMA assinatura pública - SEM BREAKING CHANGES
+  @override
+  void refreshData() {
+    _refreshDataWithDebounce();
+  }
+
+  /// Carregamento principal de dados com verificações robustas
   Future<void> _loadData() async {
     try {
-      AppConstants.logInfo('Carregando dados da tela principal');
+      AppConstants.logInfo('Iniciando carregamento da HomeScreen');
 
-      final user = await db.getUser();
-      final measurements = await db.getRecentMeasurements(limit: 3);
-      final weeklyData = await _calculateWeeklyAverage();
+      // Passo 1: Carrega dados básicos em paralelo
+      final basicResults = await Future.wait([
+        _db.getUser(),
+        _db.getRecentMeasurements(limit: 10),
+      ]);
 
-      if (!mounted) return; // NOVO: Verifica se widget ainda está montado
+      if (!mounted) return;
+
+      // Passo 2: Atualiza estado com dados carregados
+      setState(() {
+        _user = basicResults[0] as UserModel?;
+        _recentMeasurements = basicResults[1] as List<MeasurementModel>;
+      });
+
+      // Passo 3: Calcula média com dados já em memória
+      final weeklyAverage = await _calculateWeeklyAverageOptimized();
+
+      if (!mounted) return;
 
       setState(() {
-        _user = user;
-        _recentMeasurements = measurements;
-        _weeklyAverage = weeklyData;
+        _weeklyAverage = weeklyAverage;
         _isLoading = false;
       });
 
-      AppConstants.logInfo('Dados carregados - Usuário: ${user?.name}, Medições: ${measurements.length}');
+      AppConstants.logInfo(
+          'HomeScreen carregada - Usuário: ${_user?.name}, '
+              'Medições recentes: ${_recentMeasurements.length}, '
+              'Média semanal: ${_weeklyAverage.isNotEmpty ? "calculada" : "vazia"}'
+      );
+
     } catch (e, stackTrace) {
-      AppConstants.logError('Erro ao carregar dados da home', e, stackTrace);
+      AppConstants.logError('Erro ao carregar HomeScreen', e, stackTrace);
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
+        _showErrorSnackBar('Erro ao carregar dados. Tente novamente.');
       }
     }
   }
 
-  Future<Map<String, double>> _calculateWeeklyAverage() async {
+  /// Calcula média semanal usando dados em memória quando possível
+  Future<Map<String, double>> _calculateWeeklyAverageOptimized() async {
+    final now = DateTime.now();
+
+    // Verifica cache válido (30 minutos)
+    if (_isCacheValid(now)) {
+      AppConstants.logInfo('Usando cache da média semanal');
+      return _cachedWeeklyAverage!;
+    }
+
     try {
-      final endDate = DateTime.now();
+      AppConstants.logInfo('Calculando nova média semanal');
+
+      final endDate = now;
       final startDate = endDate.subtract(const Duration(days: 7));
 
-      final measurements = await db.getMeasurementsInRange(startDate, endDate);
+      // Estratégia 1: Usar dados já carregados se suficientes
+      List<MeasurementModel> measurements = _filterRecentMeasurementsForWeek(startDate, endDate);
 
-      if (measurements.isEmpty) {
-        return {};
+      // Estratégia 2: Buscar no banco se dados insuficientes
+      if (measurements.length < 3 && _recentMeasurements.isNotEmpty) {
+        AppConstants.logInfo('Buscando dados adicionais no banco para média');
+        measurements = await _db.getMeasurementsInRange(startDate, endDate);
       }
 
-      double totalSystolic = 0;
-      double totalDiastolic = 0;
-      double totalHeartRate = 0;
+      final result = _calculateAverageFromMeasurements(measurements);
 
-      for (final measurement in measurements) {
-        totalSystolic += measurement.systolic;
-        totalDiastolic += measurement.diastolic;
-        totalHeartRate += measurement.heartRate;
-      }
+      // Atualiza cache
+      _cachedWeeklyAverage = result;
+      _lastCalculationDate = now;
 
-      final count = measurements.length;
-      return {
-        'systolic': totalSystolic / count,
-        'diastolic': totalDiastolic / count,
-        'heartRate': totalHeartRate / count,
-      };
+      AppConstants.logInfo('Média calculada com ${measurements.length} medições');
+      return result;
+
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao calcular média semanal', e, stackTrace);
       return {};
+    }
+  }
+
+  /// Filtra medições recentes para última semana
+  List<MeasurementModel> _filterRecentMeasurementsForWeek(DateTime startDate, DateTime endDate) {
+    return _recentMeasurements.where((measurement) {
+      return measurement.measuredAt.isAfter(startDate) &&
+          measurement.measuredAt.isBefore(endDate);
+    }).toList();
+  }
+
+  /// Calcula estatísticas de uma lista de medições
+  Map<String, double> _calculateAverageFromMeasurements(List<MeasurementModel> measurements) {
+    if (measurements.isEmpty) {
+      return {};
+    }
+
+    double totalSystolic = 0;
+    double totalDiastolic = 0;
+    double totalHeartRate = 0;
+
+    for (final measurement in measurements) {
+      totalSystolic += measurement.systolic;
+      totalDiastolic += measurement.diastolic;
+      totalHeartRate += measurement.heartRate;
+    }
+
+    final count = measurements.length;
+    return {
+      'systolic': totalSystolic / count,
+      'diastolic': totalDiastolic / count,
+      'heartRate': totalHeartRate / count,
+    };
+  }
+
+  /// Verifica se cache é válido
+  bool _isCacheValid(DateTime now) {
+    return _cachedWeeklyAverage != null &&
+        _lastCalculationDate != null &&
+        now.difference(_lastCalculationDate!).inMinutes < 30;
+  }
+
+  /// Refresh com debounce para evitar múltiplas chamadas
+  void _refreshDataWithDebounce() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        _invalidateCache();
+        _refreshData();
+      }
+    });
+  }
+
+  /// Invalida cache quando dados mudam
+  void _invalidateCache() {
+    _cachedWeeklyAverage = null;
+    _lastCalculationDate = null;
+    AppConstants.logInfo('Cache da média semanal invalidado');
+  }
+
+  /// Limpeza periódica de cache
+  void _schedulePeriodicCacheCleanup() {
+    _cacheCleanupTimer = Timer.periodic(const Duration(hours: 1), (timer) {
+      if (mounted && _lastCalculationDate != null) {
+        final now = DateTime.now();
+        if (now.difference(_lastCalculationDate!).inHours > 2) {
+          _invalidateCache();
+          AppConstants.logInfo('Cache limpo automaticamente');
+        }
+      }
+    });
+  }
+
+  Future<void> _refreshData() async {
+    if (mounted) {
+      await _loadData();
     }
   }
 
@@ -110,6 +230,7 @@ class _HomeScreenState extends State<HomeScreen>
     return 'Boa noite';
   }
 
+  /// Navegação para adicionar medição
   void _navigateToAddMeasurement() async {
     AppConstants.logNavigation('HomeScreen', 'AddMeasurementScreen');
 
@@ -120,33 +241,54 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     if (result == true) {
-      _refreshData();
+      _invalidateCache(); // Invalida cache pois dados podem ter mudado
+      _refreshDataWithDebounce();
     }
   }
 
+  /// Navegação para histórico
   void _navigateToHistory() async {
     AppConstants.logNavigation('HomeScreen', 'HistoryScreen');
+    // Usa a navegação do MainNavigation
+
+    MainNavigation.navigateToTab(context, 1); // Índice 1 = Histórico
 
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const HistoryScreen(),
+        settings: const RouteSettings(
+          arguments: {'forceRefresh': true}, // Força refresh
+      ),
       ),
     );
 
     if (result == true) {
-      _refreshData();
+      _invalidateCache(); // Invalida cache pois dados podem ter mudado
+      _refreshDataWithDebounce();
     }
   }
 
-  Future<void> _refreshData() async {
-    if (mounted) {
-      await _loadData();
-    }
+  /// Mostra mensagem de erro
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white, size: 20),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: AppConstants.dangerColor,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // NOVO: Necessário para AutomaticKeepAliveClientMixin
+    super.build(context); // Necessário para AutomaticKeepAliveClientMixin
 
     return Scaffold(
       backgroundColor: AppConstants.backgroundColor,
@@ -156,6 +298,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Estado de carregamento otimizado
   Widget _buildLoadingState() {
     return const Center(
       child: CircularProgressIndicator(
@@ -164,6 +307,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Conteúdo principal
   Widget _buildContent() {
     return RefreshIndicator(
       onRefresh: _refreshData,
@@ -185,6 +329,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Header com saudação e informações do usuário
   Widget _buildHeader() {
     final userName = _user?.name ?? 'Usuário';
     final age = _user?.age ?? 0;
@@ -194,7 +339,7 @@ class _HomeScreenState extends State<HomeScreen>
         Container(
           width: 60,
           height: 60,
-          decoration: const BoxDecoration( // CONST adicionado
+          decoration: const BoxDecoration(
             gradient: AppConstants.logoGradient,
             shape: BoxShape.circle,
           ),
@@ -232,6 +377,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Card de média semanal
   Widget _buildWeeklyAverageCard() {
     return Card(
       elevation: 2,
@@ -243,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row( // CONST adicionado
+            const Row(
               children: [
                 Icon(
                   Icons.analytics,
@@ -271,6 +417,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Mensagem quando não há dados
   Widget _buildNoDataMessage() {
     return Center(
       child: Padding(
@@ -292,15 +439,14 @@ class _HomeScreenState extends State<HomeScreen>
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
+            ElevatedButton(
               onPressed: _navigateToAddMeasurement,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Adicionar Primeira Medição'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppConstants.primaryColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               ),
+              child: const Text('Adicionar 1ª Medição'),
             ),
           ],
         ),
@@ -308,11 +454,13 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Dados da média calculada
   Widget _buildAverageData() {
     final systolic = _weeklyAverage['systolic']!.round();
     final diastolic = _weeklyAverage['diastolic']!.round();
     final heartRate = _weeklyAverage['heartRate']!.round();
 
+    // Cria medição temporária para classificação
     final tempMeasurement = MeasurementModel(
       systolic: systolic,
       diastolic: diastolic,
@@ -327,17 +475,9 @@ class _HomeScreenState extends State<HomeScreen>
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _buildMetricColumn('Sistólica', '$systolic', 'mmHg'),
-            Container(
-              width: 1,
-              height: 40,
-              color: AppConstants.textSecondary.withOpacity(0.3),
-            ),
+            _buildVerticalDivider(),
             _buildMetricColumn('Diastólica', '$diastolic', 'mmHg'),
-            Container(
-              width: 1,
-              height: 40,
-              color: AppConstants.textSecondary.withOpacity(0.3),
-            ),
+            _buildVerticalDivider(),
             _buildMetricColumn('Batimentos', '$heartRate', 'bpm'),
           ],
         ),
@@ -364,6 +504,16 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Divisor vertical
+  Widget _buildVerticalDivider() {
+    return Container(
+      width: 1,
+      height: 40,
+      color: AppConstants.textSecondary.withOpacity(0.3),
+    );
+  }
+
+  /// Coluna de métrica individual
   Widget _buildMetricColumn(String label, String value, String unit) {
     return Column(
       children: [
@@ -394,6 +544,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Seção de medições recentes
   Widget _buildRecentMeasurementsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,6 +580,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Estado quando não há medições recentes
   Widget _buildNoRecentMeasurements() {
     return Card(
       elevation: 1,
@@ -469,19 +621,25 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  /// Lista de medições otimizada
   Widget _buildMeasurementsList() {
-    return ListView.separated(
+    return ListView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      itemCount: _recentMeasurements.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 8),
+      itemCount: _recentMeasurements.length * 2 - 1,
+      cacheExtent: 100,
       itemBuilder: (context, index) {
-        final measurement = _recentMeasurements[index];
-        return _buildMeasurementCard(measurement);
+        if (index.isOdd) {
+          return const SizedBox(height: 8);
+        }
+
+        final measurementIndex = index ~/ 2;
+        return _buildMeasurementCard(_recentMeasurements[measurementIndex]);
       },
     );
   }
 
+  /// Card individual de medição
   Widget _buildMeasurementCard(MeasurementModel measurement) {
     return Card(
       elevation: 1,
