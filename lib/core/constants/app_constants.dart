@@ -5,7 +5,7 @@ class AppConstants {
   // Informações do App
   static const String appName = 'BP Monitor';
   static const String appDescription = 'Controle sua pressão arterial';
-  static const String version = '1.1.1';
+  static const String version = '1.1.2';
 
   // Logs Tags
   static const String logTag = '[BP_MONITOR]';
