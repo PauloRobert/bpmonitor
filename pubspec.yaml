@@ -1,7 +1,7 @@
 name: bp_monitor
 description: "Aplicativo para controle de pressão arterial"
 publish_to: 'none'
-version: 1.0.2
+version: 1.1.2
 
 environment:
   sdk: '>=3.2.6 <4.0.0'
