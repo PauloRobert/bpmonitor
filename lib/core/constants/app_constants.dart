@@ -25,6 +25,9 @@ class AppConstants {
   static const String mainRoute = '/main';
   static const String onboardingRoute = '/onboarding';
 
+  //Pagina Home
+  static const String defaultErrorMessage = 'Erro ao carregar dados. Tente novamente.';
+
   // Validações de Medição
   static const int minSystolic = 70;
   static const int maxSystolic = 250;
