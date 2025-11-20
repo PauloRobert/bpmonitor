@@ -49,9 +49,12 @@ class _HistoryScreenState extends State<HistoryScreen>
     super.dispose();
   }
 
+  // ✅ CORRIGIDO: Este método é chamado pelo MainNavigation
   @override
   void loadMeasurements() {
-    _controller.loadMeasurementsWithDebounce();
+    // Limpa cache antes de recarregar
+    _controller.periodFilter.clearCache();
+    _controller.loadMeasurementsOptimized(); // Usa o método direto, sem debounce
   }
 
   @override
@@ -80,8 +83,6 @@ class _HistoryScreenState extends State<HistoryScreen>
             children: [
               list_tab.MeasurementsListTab(
                 measurements: _controller.filteredMeasurements,
-                // adapter: MeasurementsListTab espera callbacks que recebem apenas MeasurementModel,
-                // por isso passamos closures que adicionam o `context`.
                 onPeriodChange: _controller.changePeriod,
                 onEditMeasurement: (measurement) =>
                     _controller.editMeasurement(context, measurement),
