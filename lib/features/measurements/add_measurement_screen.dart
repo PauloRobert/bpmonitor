@@ -27,13 +27,19 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
   TimeOfDay _selectedTime = TimeOfDay.now();
   bool _isLoading = false;
 
+  // CORREÇÃO 1: Cache para evitar recálculos
+  List<String>? _cachedWarnings;
+  AlertLevel? _cachedAlertLevel;
+  String _lastCalculatedKey = '';
+
   @override
   void initState() {
     super.initState();
     _initializeFields();
-    _systolicController.addListener(() => setState(() {}));
-    _diastolicController.addListener(() => setState(() {}));
-    _heartRateController.addListener(() => setState(() {}));
+    // CORREÇÃO 2: Listeners otimizados - só atualizam cache
+    _systolicController.addListener(_onValuesChanged);
+    _diastolicController.addListener(_onValuesChanged);
+    _heartRateController.addListener(_onValuesChanged);
   }
 
   void _initializeFields() {
@@ -55,6 +61,18 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     _heartRateController.dispose();
     _notesController.dispose();
     super.dispose();
+  }
+
+  // CORREÇÃO 3: Método otimizado que só recalcula quando necessário
+  void _onValuesChanged() {
+    final currentKey = '${_systolicController.text}_${_diastolicController.text}_${_heartRateController.text}';
+
+    if (currentKey != _lastCalculatedKey) {
+      _lastCalculatedKey = currentKey;
+      _cachedWarnings = null;
+      _cachedAlertLevel = null;
+      setState(() {}); // Rebuild mínimo
+    }
   }
 
   Future<void> _selectDate() async {
@@ -125,57 +143,86 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     return null;
   }
 
-  List<String> _getWarnings() {
-    final warnings = <String>[];
+  // CORREÇÃO 4: Método auxiliar que cria objeto temporário UMA vez
+  MeasurementModel? _createTempMeasurement() {
     final systolic = int.tryParse(_systolicController.text);
     final diastolic = int.tryParse(_diastolicController.text);
     final heartRate = int.tryParse(_heartRateController.text);
+
+    if (systolic == null || diastolic == null) {
+      return null;
+    }
+
+    return MeasurementModel(
+      systolic: systolic,
+      diastolic: diastolic,
+      heartRate: heartRate ?? 72,
+      measuredAt: DateTime.now(),
+      createdAt: DateTime.now(),
+    );
+  }
+
+  // CORREÇÃO 5: Usa cache e só cria objeto uma vez
+  List<String> _getWarnings() {
+    if (_cachedWarnings != null) {
+      return _cachedWarnings!;
+    }
+
+    final warnings = <String>[];
+    final systolic = int.tryParse(_systolicController.text);
+    final diastolic = int.tryParse(_diastolicController.text);
+
     if (systolic != null && diastolic != null) {
       if (systolic <= diastolic) {
         warnings.add('ERRO: A pressão sistólica deve ser maior que a diastólica');
       }
-      final tempMeasurement = MeasurementModel(
-        systolic: systolic,
-        diastolic: diastolic,
-        heartRate: heartRate ?? 72,
-        measuredAt: DateTime.now(),
-        createdAt: DateTime.now(),
-      );
-      warnings.addAll(tempMeasurement.medicalAlerts);
+
+      final tempMeasurement = _createTempMeasurement();
+      if (tempMeasurement != null) {
+        warnings.addAll(tempMeasurement.medicalAlerts);
+      }
     }
+
+    _cachedWarnings = warnings;
     return warnings;
   }
 
+  // CORREÇÃO 6: Usa cache e reutiliza objeto temporário
   AlertLevel _getAlertLevel() {
+    if (_cachedAlertLevel != null) {
+      return _cachedAlertLevel!;
+    }
+
     final systolic = int.tryParse(_systolicController.text);
     final diastolic = int.tryParse(_diastolicController.text);
+
     if (systolic != null && diastolic != null) {
       if (systolic <= diastolic) {
+        _cachedAlertLevel = AlertLevel.critical;
         return AlertLevel.critical;
       }
-      final tempMeasurement = MeasurementModel(
-        systolic: systolic,
-        diastolic: diastolic,
-        heartRate: int.tryParse(_heartRateController.text) ?? 72,
-        measuredAt: DateTime.now(),
-        createdAt: DateTime.now(),
-      );
-      if (tempMeasurement.needsUrgentAttention) {
-        return AlertLevel.critical;
-      }
-      switch (tempMeasurement.category) {
-        case 'crisis':
+
+      final tempMeasurement = _createTempMeasurement();
+      if (tempMeasurement != null) {
+        if (tempMeasurement.needsUrgentAttention) {
+          _cachedAlertLevel = AlertLevel.critical;
           return AlertLevel.critical;
-        case 'high_stage2':
-          return AlertLevel.high;
-        case 'high_stage1':
-          return AlertLevel.medium;
-        case 'elevated':
-          return AlertLevel.low;
-        default:
-          return AlertLevel.none;
+        }
+
+        final level = switch (tempMeasurement.category) {
+          'crisis' => AlertLevel.critical,
+          'high_stage2' => AlertLevel.high,
+          'high_stage1' => AlertLevel.medium,
+          'elevated' => AlertLevel.low,
+          _ => AlertLevel.none,
+        };
+
+        _cachedAlertLevel = level;
+        return level;
       }
     }
+
+    _cachedAlertLevel = AlertLevel.none;
     return AlertLevel.none;
   }
 
@@ -183,6 +230,7 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
+
     final alertLevel = _getAlertLevel();
     if (alertLevel == AlertLevel.critical) {
       final shouldContinue = await _showCriticalAlert();
@@ -190,9 +238,11 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         return;
       }
     }
+
     setState(() {
       _isLoading = true;
     });
+
     try {
       final measuredAt = DateTime(
         _selectedDate.year,
@@ -201,6 +251,7 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         _selectedTime.hour,
         _selectedTime.minute,
       );
+
       final measurement = MeasurementModel(
         id: widget.measurementToEdit?.id,
         systolic: int.parse(_systolicController.text),
@@ -210,6 +261,7 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         createdAt: widget.measurementToEdit?.createdAt ?? DateTime.now(),
         notes: _notesController.text.trim().isEmpty ? null : _notesController.text.trim(),
       );
+
       AppConstants.logUserAction(
         widget.measurementToEdit != null ? 'update_measurement' : 'add_measurement',
         {
@@ -219,30 +271,38 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
           'category': measurement.category,
         },
       );
+
       if (widget.measurementToEdit != null) {
         await db.updateMeasurement(measurement);
-        AppConstants.logInfo('Medição atualizada: ${measurement.systolic}/${measurement.diastolic}');
       } else {
         await db.insertMeasurement(measurement);
-        AppConstants.logInfo('Nova medição salva: ${measurement.systolic}/${measurement.diastolic}');
       }
-      if (mounted) {
-        final isEditing = widget.measurementToEdit != null;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 8),
-                Text(isEditing ? AppConstants.measurementUpdatedSuccess : AppConstants.measurementSavedSuccess),
-              ],
-            ),
-            backgroundColor: AppConstants.successColor,
-            duration: const Duration(seconds: 2),
+
+      if (!mounted) return;
+
+      final isEditing = widget.measurementToEdit != null;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(
+                isEditing
+                    ? AppConstants.measurementUpdatedSuccess
+                    : AppConstants.measurementSavedSuccess,
+              ),
+            ],
           ),
-        );
-        Navigator.of(context).pop(true);
-      }
+          backgroundColor: AppConstants.successColor,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // POP IMEDIATO — ESSA É A CORREÇÃO REAL
+      Navigator.of(context).pop(measurement);
+
     } catch (e, stackTrace) {
       AppConstants.logError('Erro ao salvar medição', e, stackTrace);
       if (mounted) {
@@ -552,7 +612,7 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
             color: AppConstants.textPrimary,
@@ -582,7 +642,7 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Frequência Cardíaca (bpm)',
           style: TextStyle(
             fontSize: 14,
@@ -593,10 +653,10 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
         const SizedBox(height: 8),
         TextFormField(
           controller: _heartRateController,
-          decoration: InputDecoration(
+          decoration: const InputDecoration(
             hintText: 'Ex: 72',
-            border: const OutlineInputBorder(),
-            prefixIcon: const Icon(Icons.favorite),
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.favorite),
             errorMaxLines: 2,
           ),
           keyboardType: TextInputType.number,
@@ -611,19 +671,11 @@ class _AddMeasurementScreenState extends State<AddMeasurementScreen> {
   }
 
   Widget _buildClassificationPreview() {
-    final systolic = int.tryParse(_systolicController.text);
-    final diastolic = int.tryParse(_diastolicController.text);
-    final heartRate = int.tryParse(_heartRateController.text);
-    if (systolic == null || diastolic == null) {
+    final tempMeasurement = _createTempMeasurement();
+    if (tempMeasurement == null) {
       return const SizedBox.shrink();
     }
-    final tempMeasurement = MeasurementModel(
-      systolic: systolic,
-      diastolic: diastolic,
-      heartRate: heartRate ?? 72,
-      measuredAt: DateTime.now(),
-      createdAt: DateTime.now(),
-    );
+
     return Padding(
       padding: const EdgeInsets.only(top: 16),
       child: Container(
